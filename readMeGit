@@ -1,0 +1,12 @@
+git checkout main     เข้า mian  ก่อน
+git checkout -b "name"  สร้าง brand
+
+git add .  
+git commit -m "???"
+git push -u origin " ชื่อ brand "
+
+เข้าไปทำใน git
+
+โหลดเสร้จแล้ว
+git checkout main
+git pull origin main
