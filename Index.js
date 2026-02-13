@@ -43,27 +43,7 @@ app.post('/register-owner', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
-      `INSERT INTO users (full_name, email, password, role)
-       VALUES ($1, $2, $3, 'owner')
-       RETURNING id, full_name, email`,
-      [full_name, email, hashedPassword]
-    );
-
-    res.status(201).json(result.rows[0]);
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Registration failed' });
-  }
-});
-app.post('/register-owner', async (req, res) => {
-  try {
-    const { full_name, email, password } = req.body;
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const result = await pool.query(
-      `INSERT INTO users (full_name, email, password, role)
+      `INSERT INTO users (full_name, email, password)
        VALUES ($1, $2, $3, 'owner')
        RETURNING id, full_name, email`,
       [full_name, email, hashedPassword]
