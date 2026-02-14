@@ -363,3 +363,415 @@ app.get('/shops/:id', async (req, res) => {
     res.status(500).json({ message: "Failed to fetch shop" });
   }
 });
+// --------- CREATE PRODUCT ----------------
+app.post(
+  '/products',
+  authenticateToken,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const { name, description, price_per_day, stock } = req.body;
+      const userId = req.user.id;
+
+      // หา shop ของ user
+      const shopResult = await pool.query(
+        "SELECT * FROM shops WHERE owner_id = $1",
+        [userId]
+      );
+
+      if (shopResult.rows.length === 0) {
+        return res.status(400).json({
+          message: "You don't have a shop"
+        });
+      }
+
+      const shopId = shopResult.rows[0].id;
+
+      const result = await pool.query(
+        `INSERT INTO products (name, description, price_per_day, stock, shop_id)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING *`,
+        [name, description, price_per_day, stock, shopId]
+      );
+
+      res.status(201).json({
+        message: "Product created successfully",
+        product: result.rows[0]
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Product creation failed" });
+    }
+  }
+);
+// --------- GET ALL PRODUCTS ----------------
+app.get('/products', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT p.*, s.name AS shop_name
+       FROM products p
+       JOIN shops s ON p.shop_id = s.id`
+    );
+
+    res.json({ products: result.rows });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch products" });
+  }
+});
+// --------- UPDATE PRODUCT ----------------
+app.put(
+  '/products/:id',
+  authenticateToken,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const productId = req.params.id;
+      const userId = req.user.id;
+      const { name, description, price_per_day, stock } = req.body;
+
+      // เช็คว่า product นี้เป็นของ shop user ไหม
+      const checkOwner = await pool.query(
+        `SELECT p.* 
+         FROM products p
+         JOIN shops s ON p.shop_id = s.id
+         WHERE p.id = $1 AND s.owner_id = $2`,
+        [productId, userId]
+      );
+
+      if (checkOwner.rows.length === 0) {
+        return res.status(403).json({
+          message: "You are not the owner of this product"
+        });
+      }
+
+      const result = await pool.query(
+        `UPDATE products
+         SET name=$1, description=$2, price_per_day=$3, stock=$4
+         WHERE id=$5
+         RETURNING *`,
+        [name, description, price_per_day, stock, productId]
+      );
+
+      res.json({
+        message: "Product updated successfully",
+        product: result.rows[0]
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Product update failed" });
+    }
+  }
+);
+// --------- DELETE PRODUCT ----------------
+app.delete(
+  '/products/:id',
+  authenticateToken,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const productId = req.params.id;
+      const userId = req.user.id;
+
+      const checkOwner = await pool.query(
+        `SELECT p.* 
+         FROM products p
+         JOIN shops s ON p.shop_id = s.id
+         WHERE p.id = $1 AND s.owner_id = $2`,
+        [productId, userId]
+      );
+
+      if (checkOwner.rows.length === 0) {
+        return res.status(403).json({
+          message: "You are not the owner of this product"
+        });
+      }
+
+      await pool.query(
+        `DELETE FROM products WHERE id = $1`,
+        [productId]
+      );
+
+      res.json({
+        message: "Product deleted successfully"
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Product deletion failed" });
+    }
+  }
+);
+// --------- CREATE RENTAL ----------------
+app.post(
+  '/rentals',
+  authenticateToken,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const { product_id, start_date, end_date } = req.body;
+      const userId = req.user.id;
+
+      // ดึงข้อมูลสินค้า
+      const productResult = await pool.query(
+        "SELECT * FROM products WHERE id = $1",
+        [product_id]
+      );
+
+      if (productResult.rows.length === 0) {
+        return res.status(404).json({ message: "Product not found" });
+      }
+
+      const product = productResult.rows[0];
+
+      if (product.stock <= 0) {
+        return res.status(400).json({ message: "Product out of stock" });
+      }
+
+      // คำนวณจำนวนวัน
+      const start = new Date(start_date);
+      const end = new Date(end_date);
+      const days = (end - start) / (1000 * 60 * 60 * 24);
+
+      if (days <= 0) {
+        return res.status(400).json({ message: "Invalid rental period" });
+      }
+
+      const totalPrice = days * product.price_per_day;
+
+      // สร้าง rental
+      const rentalResult = await pool.query(
+        `INSERT INTO rentals 
+(user_id, product_id, start_date, end_date, total_price, status)
+VALUES ($1, $2, $3, $4, $5, 'pending_owner')
+RETURNING *`,
+        [userId, product_id, start_date, end_date, totalPrice]
+      );
+
+      
+
+      res.status(201).json({
+        message: "Rental created successfully",
+        rental: rentalResult.rows[0]
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Rental creation failed" });
+    }
+  }
+);
+// --------- OWNER APPROVE RENTAL ----------------
+app.put(
+  '/rentals/:id/owner-approve',
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const rentalId = req.params.id;
+      const userId = req.user.id;
+
+      // เช็คว่า rental นี้เป็นของร้าน user ไหม
+      const checkOwner = await pool.query(
+        `
+        SELECT r.*, p.id AS product_id, s.owner_id
+        FROM rentals r
+        JOIN products p ON r.product_id = p.id
+        JOIN shops s ON p.shop_id = s.id
+        WHERE r.id = $1
+        `,
+        [rentalId]
+      );
+
+      if (checkOwner.rows.length === 0) {
+        return res.status(404).json({ message: "Rental not found" });
+      }
+
+      const rental = checkOwner.rows[0];
+
+      if (rental.owner_id !== userId) {
+        return res.status(403).json({
+          message: "You are not the owner of this product"
+        });
+      }
+
+      if (rental.status !== 'pending_owner') {
+        return res.status(400).json({
+          message: "Rental cannot be approved at this stage"
+        });
+      }
+
+      await pool.query(
+        `UPDATE rentals
+         SET status = 'owner_approved'
+         WHERE id = $1`,
+        [rentalId]
+      );
+
+      res.json({
+        message: "Rental approved by owner",
+        status: "owner_approved"
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Owner approval failed" });
+    }
+  }
+);
+// --------- CREATE PAYMENT (UPLOAD SLIP) ----------------
+app.post(
+  '/payments',
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const { rental_id, slip_image } = req.body;
+      const userId = req.user.id;
+
+      // เช็คว่า rental นี้เป็นของ user คนนี้ไหม
+      const rentalResult = await pool.query(
+        `SELECT * FROM rentals WHERE id = $1 AND user_id = $2`,
+        [rental_id, userId]
+      );
+
+      if (rentalResult.rows.length === 0) {
+        return res.status(404).json({
+          message: "Rental not found"
+        });
+      }
+
+      const rental = rentalResult.rows[0];
+
+      if (rental.status !== 'owner_approved') {
+        return res.status(400).json({
+          message: "Rental is not ready for payment"
+        });
+      }
+
+      // สร้าง payment record
+      const paymentResult = await pool.query(
+        `INSERT INTO payments (rental_id, slip_image)
+         VALUES ($1, $2)
+         RETURNING *`,
+        [rental_id, slip_image]
+      );
+
+      // เปลี่ยน rental status
+      await pool.query(
+        `UPDATE rentals
+         SET status = 'waiting_admin_verify'
+         WHERE id = $1`,
+        [rental_id]
+      );
+
+      res.status(201).json({
+        message: "Slip uploaded successfully",
+        payment: paymentResult.rows[0]
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({
+        message: "Payment upload failed"
+      });
+    }
+  }
+);
+// --------- ADMIN VERIFY PAYMENT ----------------
+app.put(
+  '/payments/:id/admin-verify',
+  authenticateToken,
+  async (req, res) => {
+    try {
+      const paymentId = req.params.id;
+      const { approve } = req.body;
+
+      // เช็ค role เป็น admin
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          message: "Only admin can verify payments"
+        });
+      }
+
+      // ดึง payment + rental + product
+      const paymentResult = await pool.query(
+        `
+        SELECT p.*, r.product_id
+        FROM payments p
+        JOIN rentals r ON p.rental_id = r.id
+        WHERE p.id = $1
+        `,
+        [paymentId]
+      );
+
+      if (paymentResult.rows.length === 0) {
+        return res.status(404).json({
+          message: "Payment not found"
+        });
+      }
+
+      const payment = paymentResult.rows[0];
+
+      if (approve) {
+
+        // อัปเดต payment
+        await pool.query(
+          `UPDATE payments
+           SET status = 'approved'
+           WHERE id = $1`,
+          [paymentId]
+        );
+
+        // อัปเดต rental
+        await pool.query(
+          `UPDATE rentals
+           SET status = 'completed'
+           WHERE id = $1`,
+          [payment.rental_id]
+        );
+
+        // ลด stock ตอนนี้
+        await pool.query(
+          `UPDATE products
+           SET stock = stock - 1
+           WHERE id = $1`,
+          [payment.product_id]
+        );
+
+        res.json({
+          message: "Payment verified",
+          rental_status: "completed"
+        });
+
+      } else {
+
+        await pool.query(
+          `UPDATE payments
+           SET status = 'rejected'
+           WHERE id = $1`,
+          [paymentId]
+        );
+
+        await pool.query(
+          `UPDATE rentals
+           SET status = 'rejected'
+           WHERE id = $1`,
+          [payment.rental_id]
+        );
+
+        res.json({
+          message: "Payment rejected",
+          rental_status: "rejected"
+        });
+      }
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({
+        message: "Admin verification failed"
+      });
+    }
+  }
+);
