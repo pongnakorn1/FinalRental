@@ -29,12 +29,12 @@ await pool.query(`
     // SHOPS
     await pool.query(`
       CREATE TABLE IF NOT EXISTS shops (
-        id SERIAL PRIMARY KEY,
-        owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-        shop_name VARCHAR(255) NOT NULL,
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
     `);
 
     // PRODUCTS

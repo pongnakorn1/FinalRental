@@ -281,3 +281,85 @@ app.get('/admin-test', authenticateToken, requireAdmin, (req, res) => {
 app.get('/rent-test', authenticateToken, requireVerified, (req, res) => {
   res.json({ message: "You are KYC approved ✅" });
 });
+
+//=======================================
+//            SHOP
+//=======================================
+// --------- CREATE SHOP ----------------
+app.post(
+  '/shops',
+  authenticateToken,
+  requireVerified,
+  async (req, res) => {
+    try {
+      const { name, description } = req.body;
+      const ownerId = req.user.id;
+
+      // เช็คว่ามีร้านแล้วหรือยัง
+      const existingShop = await pool.query(
+        "SELECT * FROM shops WHERE owner_id = $1",
+        [ownerId]
+      );
+
+      if (existingShop.rows.length > 0) {
+        return res.status(400).json({
+          message: "You already have a shop"
+        });
+      }
+
+      const result = await pool.query(
+        `INSERT INTO shops (name, description, owner_id)
+         VALUES ($1, $2, $3)
+         RETURNING *`,
+        [name, description, ownerId]
+      );
+
+      res.status(201).json({
+        message: "Shop created successfully",
+        shop: result.rows[0]
+      });
+
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Shop creation failed" });
+    }
+  }
+);
+// --------- GET ALL SHOPS ----------------
+app.get('/shops', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT s.*, u.full_name AS owner_name
+       FROM shops s
+       JOIN users u ON s.owner_id = u.id`
+    );
+
+    res.json({ shops: result.rows });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch shops" });
+  }
+});
+// --------- GET SHOP BY ID ----------------
+app.get('/shops/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT s.*, u.full_name AS owner_name
+       FROM shops s
+       JOIN users u ON s.owner_id = u.id
+       WHERE s.id = $1`,
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Shop not found" });
+    }
+
+    res.json({ shop: result.rows[0] });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch shop" });
+  }
+});
