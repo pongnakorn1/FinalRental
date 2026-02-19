@@ -2,7 +2,8 @@ import pool from '../../config/db.js';
 
 export const createRental = async (req, res) => {
   try {
-    const { product_id, start_date, end_date } = req.body;
+    // 1. รับค่า quantity ที่ส่งมาจาก Postman (เลข 3)
+    const { product_id, start_date, end_date, quantity } = req.body; 
     const userId = req.user.id;
 
     const productResult = await pool.query(
@@ -15,17 +16,26 @@ export const createRental = async (req, res) => {
 
     const product = productResult.rows[0];
 
-    if (product.stock <= 0)
+    // 2. แก้จาก product.stock เป็น product.quantity ให้ตรงกับใน pgAdmin
+    if (product.quantity <= 0)
       return res.status(400).json({ message: "Product out of stock" });
+
+    // 3. เพิ่มเงื่อนไขตรวจสอบ: ถ้าสั่งมากกว่าที่มี (สั่ง 3 แต่มี 2)
+    if (quantity > product.quantity) {
+      return res.status(400).json({ 
+        message: `สินค้าไม่พอ มีเหลือเพียง ${product.quantity} ชิ้นเท่านั้น` 
+      });
+    }
 
     const start = new Date(start_date);
     const end = new Date(end_date);
-    const days = (end - start) / (1000 * 60 * 60 * 24);
+    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)); // ใช้ Math.ceil เพื่อให้ได้จำนวนเต็ม
 
     if (days <= 0)
       return res.status(400).json({ message: "Invalid rental period" });
 
-    const totalPrice = days * product.price_per_day;
+    // 4. คำนวณราคาสุทธิ (ราคาต่อวัน * จำนวนวัน * จำนวนชิ้น)
+    const totalPrice = days * product.price_per_day * quantity;
 
     const rentalResult = await pool.query(
       `INSERT INTO rentals 
@@ -41,7 +51,7 @@ export const createRental = async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
+    console.error(err); // ดูรายละเอียด Error จริงใน Terminal
     res.status(500).json({ message: "Rental creation failed" });
   }
 };

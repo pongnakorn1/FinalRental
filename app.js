@@ -7,6 +7,7 @@ import shopRoutes from './modules/shop/shop.routes.js';
 import productRoutes from './modules/product/product.routes.js';
 import rentalRoutes from './modules/rental/rental.routes.js';
 import paymentRoutes from './modules/payment/payment.routes.js';
+import chatRoutes from './modules/chat/chat.routes.js';
 
 const app = express();
 
@@ -23,5 +24,6 @@ app.use('/api/shops', shopRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/rentals', rentalRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/chat', chatRoutes);
 
 export default app;
