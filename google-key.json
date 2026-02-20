@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "product-rental-login",
+  "private_key_id": "0e2a7b31ef0cf38dced962d07b5cc3af7a242463",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQC3SFD3aDbKoPHK\n4/4BJv2iD3sB4Oc6AwL+f2qcAqIkR7oCDHER84f25trC8+rmICriNjd8UUZtPk1E\nzeFN4G5cErXIgG9rImvjHNK2fVx8svs4EvQUytkOOAiqUf0/uQrePoMQ6fztbyFs\n2Z3Pm8EdcitlEE7btpSGmbzo0DKGKjBuHN7Pd+5Td5yKMp3SIvUbvCV8XiV82zSx\ny6GyIsDvmx8h6L8i59jaRutXO52AI86ueyNsxbJqsOAEzXTsy9FDXHZhCI5H6wkQ\n0E8rfTmyqivIl2lIu5FDmtmmuzGRYO80O1tujtvdmghPIuNYF/S6FN3ZqYN8G3uv\n3bcYsvEpAgMBAAECggEAAUeZux8o53FyvBLV8pjyAz2TmLUtisqRF4j5DABPtKxP\nM0BLfM+EEZhV4C/BojGIzcizn/mq9yHMz9AWhIuZMamMHTYvsPeN+clj0OmJ/waP\n5E8WPFvt4osdHQqoAkJ5kzOBXkRH+LoX1BGmkq0YztVofKg9vgvQYyqJIWCswveJ\nldarRfBJ/XW2LCU1/AbfHBEpbOzxVC7uxzBz/xXAOdXIcVqBRdPI6NkzQPxdccXp\nOqMZ4ItCfyT+OtzcObTT5cp7Wdyk8rRhRp+dvah1Rv3s7SLoVW1AjFHO08iF8ZzT\n9FdNM36gDLe9IbAl7vRjiA6t8G9Q4cQ/TLUKo3rCFQKBgQDYz3zYnxVoUQ5wdCct\n3BZhNn6bddLq7qH8kPZE1ptt/RtoREB6JXj2aFAMJC6hCzWcwX98jRVxqFxKtHn1\nnxw1yXkbpqoG0dE9m0ine7rQAY7qE/bRpHxScIPs49k8c3jYu2ONYDkA3l6xqAcY\npRCbWNw965yB+LWoaCf+nXwf1QKBgQDYaWFxICwb8hLZFhA2n42Y0zt98sG6Iqki\nDfZQS4P61Kfu7AvIatJ52DzXK2528rQaZsLD7mQYz6uCgzu3rbJwkHlNwudUlplc\n3tDJhTjqNZXTCZ5TG2ksIsDfSH2v2qp2gvTfj1d2YcTFO9ylBJ970Ravn8Uf3U4y\nmbaNh+gKBQKBgQCNPob//IuOvReiDRmlF7eAt2a90oGIydO/3ZSCfikd+4GKaMR0\njssCBCz56+xwwAO6TpjGRIdO1zbg+Dhn2rMfG1UJvYcREEm3T92CNuoaLpmzRzRJ\nmVXgwyo+/qT8a+GzmEifxqr8NOIN7QBKfuaVvcslj8QTLDr0Ln63slM1zQKBgQDQ\nihP1ACyhLU9OU/2BtZSsLPkKMFDQfi//efbefzaKEjxVdq8QDSgPc/mE2vxSsSQu\nwNF0Hxfj9NJwLOfx4vatk/rgnS1wDMNyg+AsIS2sO8DJoV4o9aQOfNrhDyjWud9D\n3oP7nlSI5kPIUBwaBG9u0BiNWmeJgieliQwqLEnExQKBgQDFa+WAcdx8iQRBXMxU\ngl+/VdhJKhvhyY4QvQ7ht/aHC/svSBuxpaScG/lL23kDhSNEgCdNuQ66qm4qWMQG\nCgbxfhc+OB7A0aEiounfVVUixf8jIp6KSoGpDKAXvPe1/1ATDZhdFs6N6LnXlYSZ\n4P5MwJ9yXiYAD4VdL3cgSxad8g==\n-----END PRIVATE KEY-----\n",
+  "client_email": "vision-scanner@product-rental-login.iam.gserviceaccount.com",
+  "client_id": "101819675936404406787",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/vision-scanner%40product-rental-login.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}
