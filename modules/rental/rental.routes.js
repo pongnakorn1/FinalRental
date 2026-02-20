@@ -1,7 +1,8 @@
 import express from 'express';
 import {
   createRental,
-  ownerApproveRental
+  ownerApproveRental,
+  updateRentalStatus
 } from './rental.controller.js';
 
 import { authenticateToken } from '../../middleware/auth.middleware.js';
@@ -19,7 +20,10 @@ router.post(
 router.put(
   '/:id/owner-approve',
   authenticateToken,
+  requireVerified,
   ownerApproveRental
 );
+
+router.put('/:id/status', authenticateToken, updateRentalStatus);
 
 export default router;
