@@ -1,25 +1,8 @@
-import 'dotenv/config';
-import express from 'express';
-import pg from 'pg';
+import app from './app.js';
+import pool from './config/db.js';
 
-const { Pool } = pg;
-
-const app = express();
 const PORT = 3000;
 
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASS,
-  port: Number(process.env.DB_PORT),
-});
-
-app.get('/', (req, res) => {
-  res.send('Server is working ✅');
-});
-
-// 🔥 เชื่อมต่อ DB ตอนเริ่ม server
 app.listen(PORT, async () => {
   try {
     await pool.connect();
