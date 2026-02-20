@@ -10,30 +10,54 @@ export const register = async (req, res) => {
   try {
     const { full_name, email, phone, address, password } = req.body;
 
-    // ❌ ตรวจข้อมูลที่จำเป็น
-    if (!full_name || !email || !password) {
+    // 1. ❌ ตรวจข้อมูลที่จำเป็น
+    if (!full_name || !email || !password || !phone) {
       return res.status(400).json({
-        message: "Full name, email and password are required"
+        message: "กรุณากรอกข้อมูลให้ครบถ้วน"
       });
     }
 
-    // ❌ ตรวจรูปแบบ email
+    // 2. ❌ เช็กเบอร์โทรศัพท์ (10 หลัก, ขึ้นต้นด้วย 08 หรือ 09 เท่านั้น)
+    const phoneRegex = /^(08|09)\d{8}$/; // เปลี่ยนจาก ^08 เป็น ^(08|09)
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({
+        message: "เบอร์โทรศัพท์ต้องเป็นตัวเลข 10 หลัก และเริ่มต้นด้วย 08 หรือ 09 เท่านั้น"
+      });
+    }
+
+    // 3. ❌ เช็กเบอร์โทรศัพท์ซ้ำในฐานข้อมูล
+    const existingPhone = await pool.query(
+      "SELECT id FROM users WHERE phone = $1",
+      [phone]
+    );
+
+    if (existingPhone.rowCount > 0) {
+      return res.status(400).json({
+        message: "เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว",
+        suggestion: "กรุณาใช้เบอร์โทรศัพท์อื่นในการลงทะเบียน"
+      });
+    }
+
+    // 4. ❌ ตรวจรูปแบบ email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
     if (!emailRegex.test(email)) {
-      return res.status(400).json({
-        message: "Invalid email format"
+      return res.status(400).json({ message: "รูปแบบอีเมลไม่ถูกต้อง" });
+    }
+
+    // 5. ❌ ตรวจความปลอดภัยรหัสผ่าน (8+ ตัว, ใหญ่+เล็ก+เลข, ห้ามภาษาไทย)
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{8,}$/;
+    const containsThai = /[\u0E00-\u0E7F]/;
+
+    if (containsThai.test(password)) {
+      return res.status(400).json({ message: "รหัสผ่านห้ามใช้ภาษาไทย" });
+    }
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({ 
+        message: "รหัสผ่านต้องมีความยาวอย่างน้อย 8 ตัวอักษร และประกอบด้วยตัวพิมพ์ใหญ่ ตัวพิมพ์เล็ก และตัวเลข" 
       });
     }
 
-    // ❌ ตรวจความยาว password
-    if (password.length < 6) {
-      return res.status(400).json({
-        message: "Password must be at least 6 characters"
-      });
-    }
-
-    // ❌ เช็ค email ซ้ำ
+    // 6. ❌ เช็ก email ซ้ำ
     const existingUser = await pool.query(
       "SELECT id FROM users WHERE LOWER(email) = LOWER($1)",
       [email]
@@ -41,35 +65,33 @@ export const register = async (req, res) => {
 
     if (existingUser.rowCount > 0) {
       return res.status(400).json({
-        message: "Email already exists"
+        message: "อีเมลนี้ถูกใช้งานแล้ว",
+        suggestion: "หากคุณลืมรหัสผ่าน กรุณาไปที่หน้า 'ลืมรหัสผ่าน'",
+        redirect_to: "/forgot-password"
       });
     }
 
-    // 🔒 hash password
+    // 🔒 7. Hash password และ บันทึกข้อมูล
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 💾 บันทึก user
     const result = await pool.query(
       `INSERT INTO users 
        (full_name, email, phone, address, password, role, kyc_status)
        VALUES ($1,$2,$3,$4,$5,'user','not_submitted')
-       RETURNING id, full_name, email, role, kyc_status`,
+       RETURNING id, full_name, email, phone, role, kyc_status`,
       [full_name, email, phone, address, hashedPassword]
     );
 
     res.status(201).json({
-      message: "Registration successful",
+      message: "ลงทะเบียนสำเร็จ",
       user: result.rows[0]
     });
 
   } catch (err) {
     console.error("REGISTER ERROR:", err);
-    res.status(500).json({
-      message: "Registration failed"
-    });
+    res.status(500).json({ message: "เกิดข้อผิดพลาดในการลงทะเบียน" });
   }
 };
-
 
 
 // =============================

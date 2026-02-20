@@ -32,10 +32,10 @@ export const createPayment = async (req, res) => {
     const rental = rentalResult.rows[0];
 
     // ✅ 2. ตรวจสอบสถานะ (ต้องผ่านการอนุมัติจากเจ้าของก่อน)
-    if (rental.status !== "owner_approved") {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ message: "Rental is not ready for payment" });
-    }
+    if (rental.status !== "waiting_payment") {
+    await client.query("ROLLBACK");
+    return res.status(400).json({ message: "Rental is not ready for payment" });
+}
 
     // 🔄 3. อัปเดตลงตาราง bookings โดยตรง (เพราะคุณมีคอลัมน์ slip_image อยู่แล้ว)
     const updatedBooking = await client.query(
@@ -95,7 +95,7 @@ export const adminVerifyPayment = async (req, res) => {
       // ✅ 2. อนุมัติ: เปลี่ยนสถานะเป็น completed และ paid
       await client.query(
         `UPDATE bookings 
-         SET status = 'completed', 
+         SET status = 'paid', 
              payment_status = 'paid' 
          WHERE id = $1`,
         [bookingId]

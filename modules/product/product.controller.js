@@ -126,14 +126,15 @@ export const getProductsByShop = async (req, res) => {
 // 📌 UPDATE PRODUCT
 // =============================
 export const updateProduct = async (req, res) => {
+  const client = await pool.connect();
   try {
     const productId = req.params.id;
     const userId = req.user.id;
     const { name, description, price_per_day, quantity } = req.body;
 
-    // 🔎 ตรวจ owner
-    const checkOwner = await pool.query(
-      `SELECT p.id
+    // 1. ตรวจสอบความเป็นเจ้าของสินค้าผ่าน Shop
+    const checkOwner = await client.query(
+      `SELECT p.id, p.shop_id 
        FROM products p
        JOIN shops s ON p.shop_id = s.id
        WHERE p.id = $1 AND s.owner_id = $2`,
@@ -142,47 +143,59 @@ export const updateProduct = async (req, res) => {
 
     if (checkOwner.rowCount === 0) {
       return res.status(403).json({
-        message: "You are not the owner of this product"
+        message: "คุณไม่มีสิทธิ์แก้ไขสินค้านี้ เนื่องจากคุณไม่ใช่เจ้าของร้าน"
       });
     }
 
-    if (price_per_day !== undefined && price_per_day <= 0) {
-      return res.status(400).json({
-        message: "Invalid price"
-      });
+    // 2. Validation ตรวจสอบความถูกต้องของข้อมูล
+    if (price_per_day !== undefined && (isNaN(price_per_day) || price_per_day <= 0)) {
+      return res.status(400).json({ message: "ราคาต่อวันต้องเป็นตัวเลขที่มากกว่า 0" });
     }
 
-    if (quantity !== undefined && quantity < 0) {
-      return res.status(400).json({
-        message: "Invalid quantity"
-      });
+    if (quantity !== undefined && (isNaN(quantity) || quantity < 0)) {
+      return res.status(400).json({ message: "จำนวนสต็อกต้องเป็นตัวเลขที่ไม่ติดลบ" });
     }
 
-    const result = await pool.query(
+    // 3. เริ่มการอัปเดตข้อมูล (ใช้เพียง Query เดียวที่รองรับค่า Null)
+    // ถ้าตัวแปรไหนไม่ได้ส่งมา ($ เป็น NULL) จะใช้ค่าเดิมจาก Database (เช่น name = name)
+    const result = await client.query(
       `UPDATE products
        SET
-         name = COALESCE($1, name),
-         description = COALESCE($2, description),
-         price_per_day = COALESCE($3, price_per_day),
-         quantity = COALESCE($4, quantity)
+         name = CASE WHEN $1::text IS NULL THEN name ELSE $1 END,
+         description = CASE WHEN $2::text IS NULL THEN description ELSE $2 END,
+         price_per_day = CASE WHEN $3::numeric IS NULL THEN price_per_day ELSE $3 END,
+         quantity = CASE WHEN $4::integer IS NULL THEN quantity ELSE $4 END,
+         updated_at = NOW()
        WHERE id = $5
        RETURNING *`,
-      [name, description, price_per_day, quantity, productId]
+      [
+        name !== undefined ? name : null, 
+        description !== undefined ? description : null, 
+        price_per_day !== undefined ? price_per_day : null, 
+        quantity !== undefined ? quantity : null, 
+        productId
+      ]
     );
 
+    if (result.rowCount === 0) {
+      return res.status(404).json({ message: "ไม่พบข้อมูลสินค้า" });
+    }
+
     res.json({
-      message: "Product updated successfully",
+      message: "อัปเดตข้อมูลสินค้าสำเร็จ",
       product: result.rows[0]
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("Update Product Error:", err);
     res.status(500).json({
-      message: "Product update failed"
+      message: "การอัปเดตสินค้าล้มเหลว",
+      error: err.message
     });
+  } finally {
+    client.release();
   }
 };
-
 
 
 // =============================
