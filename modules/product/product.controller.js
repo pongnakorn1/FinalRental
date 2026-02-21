@@ -59,10 +59,11 @@ export const createProduct = async (req, res) => {
 
 
 // =============================
-// 📌 GET ALL PRODUCTS
+// 📌 GET ALL PRODUCTS (แก้ไขแล้ว ✅)
 // =============================
 export const getAllProducts = async (req, res) => {
   try {
+    // แก้ไข SQL ให้เพิ่มเงื่อนไข WHERE p.is_active = TRUE
     const result = await pool.query(
       `SELECT 
          p.id,
@@ -70,56 +71,43 @@ export const getAllProducts = async (req, res) => {
          p.description,
          p.price_per_day,
          p.quantity,
+         p.is_active,
          s.name AS shop_name
        FROM products p
        JOIN shops s ON p.shop_id = s.id
+       WHERE p.is_active = TRUE  -- ดึงเฉพาะที่เปิดใช้งาน
        ORDER BY p.id DESC`
     );
 
     res.json({ products: result.rows });
-
   } catch (err) {
     console.error(err);
-    res.status(500).json({
-      message: "Failed to fetch products"
-    });
+    res.status(500).json({ message: "Failed to fetch products" });
   }
 };
 
-
-
 // =============================
-// 📌 GET PRODUCTS BY SHOP 🔥 (เพิ่มใหม่)
+// 📌 GET PRODUCTS BY SHOP (แก้ไขแล้ว ✅)
 // =============================
 export const getProductsByShop = async (req, res) => {
   try {
     const shopId = req.params.shopId;
-
+    // เพิ่ม WHERE is_active = TRUE
     const result = await pool.query(
       `SELECT 
-         id,
-         name,
-         description,
-         price_per_day,
-         quantity
+         id, name, description, price_per_day, quantity, is_active
        FROM products
-       WHERE shop_id = $1
+       WHERE shop_id = $1 AND is_active = TRUE
        ORDER BY id DESC`,
       [shopId]
     );
 
-    res.json({
-      products: result.rows
-    });
-
+    res.json({ products: result.rows });
   } catch (err) {
     console.error(err);
-    res.status(500).json({
-      message: "Failed to fetch shop products"
-    });
+    res.status(500).json({ message: "Failed to fetch shop products" });
   }
 };
-
 
 
 // =============================
@@ -262,4 +250,38 @@ export const deleteProduct = async (req, res) => {
   } finally {
     client.release();
   }
+};
+// =============================
+// 📌 TOGGLE PRODUCT STATUS (แก้ไขสิทธิ์การเข้าถึง ✅)
+// =============================
+export const toggleProductStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user.id;
+
+        // แก้ไข: สินค้าไม่มี owner_id โดยตรง ต้อง JOIN กับ shops เพื่อเช็กสิทธิ์
+        const result = await pool.query(
+            `UPDATE products p
+             SET is_active = NOT p.is_active 
+             FROM shops s
+             WHERE p.shop_id = s.id 
+             AND p.id = $1 
+             AND s.owner_id = $2 
+             RETURNING p.is_active`,
+            [id, userId]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: "ไม่พบสินค้า หรือคุณไม่มีสิทธิ์แก้ไข" });
+        }
+
+        const currentStatus = result.rows[0].is_active;
+        res.json({ 
+            message: currentStatus ? "เปิดการให้เช่า" : "ปิดการให้เช่าชั่วคราว",
+            is_active: currentStatus 
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Toggle failed" });
+    }
 };
