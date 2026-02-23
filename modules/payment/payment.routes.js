@@ -1,4 +1,5 @@
 import express from 'express';
+import { requireAdmin } from '../../middleware/role.middleware.js';
 import {
   createPayment,
   adminVerifyPayment
@@ -13,6 +14,7 @@ router.post('/', authenticateToken, createPayment);
 router.put(
   '/:id/admin-verify',
   authenticateToken,
+  requireAdmin,
   adminVerifyPayment
 );
 

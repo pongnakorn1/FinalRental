@@ -1,4 +1,4 @@
-import pool from '../../config/db.js';
+import pool from "../../config/db.js";
 
 // ฟังก์ชันดึงรายการที่รอตรวจสอบ (KYC-1-004)
 export const viewPendingKYC = async (req, res) => {

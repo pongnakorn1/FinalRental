@@ -1,16 +1,25 @@
-import pool from '../../config/db.js';
+import pool from "../../config/db.js";
 
 export const createShop = async (req, res) => {
   try {
     const { name, description } = req.body;
     const ownerId = req.user.id;
 
+    if (!name || !name.trim()) {
+      return res.status(400).json({
+        message: "Shop name is required"
+      });
+    }
+
+    const cleanName = name.trim();
+    const cleanDescription = description?.trim() || null;
+
     const existingShop = await pool.query(
-      "SELECT * FROM shops WHERE owner_id = $1",
+      "SELECT id FROM shops WHERE owner_id = $1",
       [ownerId]
     );
 
-    if (existingShop.rows.length > 0) {
+    if (existingShop.rowCount > 0) {
       return res.status(400).json({
         message: "You already have a shop"
       });
@@ -18,9 +27,9 @@ export const createShop = async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO shops (name, description, owner_id)
-       VALUES ($1, $2, $3)
+       VALUES ($1,$2,$3)
        RETURNING *`,
-      [name, description, ownerId]
+      [cleanName, cleanDescription, ownerId]
     );
 
     res.status(201).json({
@@ -28,42 +37,65 @@ export const createShop = async (req, res) => {
       shop: result.rows[0]
     });
 
-  } catch {
-    res.status(500).json({ message: "Shop creation failed" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Shop creation failed"
+    });
   }
 };
-
 export const getAllShops = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT s.*, u.full_name AS owner_name
-       FROM shops s
-       JOIN users u ON s.owner_id = u.id`
+      `
+      SELECT s.*, u.full_name AS owner_name
+      FROM shops s
+      JOIN users u ON s.owner_id = u.id
+      ORDER BY s.id DESC
+      `
     );
 
     res.json({ shops: result.rows });
 
-  } catch {
-    res.status(500).json({ message: "Failed to fetch shops" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Failed to fetch shops"
+    });
   }
 };
-
 export const getShopById = async (req, res) => {
   try {
+    const shopId = req.params.id;
+
+    if (!shopId) {
+      return res.status(400).json({
+        message: "Shop ID is required"
+      });
+    }
+
     const result = await pool.query(
-      `SELECT s.*, u.full_name AS owner_name
-       FROM shops s
-       JOIN users u ON s.owner_id = u.id
-       WHERE s.id = $1`,
-      [req.params.id]
+      `
+      SELECT s.*, u.full_name AS owner_name
+      FROM shops s
+      JOIN users u ON s.owner_id = u.id
+      WHERE s.id = $1
+      `,
+      [shopId]
     );
 
-    if (result.rows.length === 0)
-      return res.status(404).json({ message: "Shop not found" });
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        message: "Shop not found"
+      });
+    }
 
     res.json({ shop: result.rows[0] });
 
-  } catch {
-    res.status(500).json({ message: "Failed to fetch shop" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Failed to fetch shop"
+    });
   }
 };
