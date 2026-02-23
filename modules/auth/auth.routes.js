@@ -1,6 +1,7 @@
 import express from 'express';
 import { register, login, uploadKYC } from './auth.controller.js';
 import { authenticateToken } from '../../middleware/auth.middleware.js'; // มั่นใจว่า path ถูกต้อง
+import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
 import path from 'path';
 
@@ -36,6 +37,11 @@ const upload = multer({
 // --- Routes เดิม ---
 router.post('/register', register);
 router.post('/login', login);
+
+// OTP Routes 
+router.post('/request-otp', requestOTP);
+router.post('/verify-otp', verifyOTP);
+
 
 // --- เพิ่ม Route สำหรับ KYC ---
 // ใช้ verifyToken เพื่อดึง req.user.id มาใช้ใน controller
