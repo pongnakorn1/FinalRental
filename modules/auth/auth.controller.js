@@ -147,6 +147,51 @@ export const login = async (req, res) => {
 };
 
 // =============================
+// 📌 GOOGLE/SOCIAL LOGIN (เพิ่มใหม่)
+// =============================
+export const socialLogin = async (req, res) => {
+    try {
+        // passport จะใส่ข้อมูลไว้ใน req.user หลังจากยืนยันกับ Google สำเร็จ
+        const { displayName, emails, id } = req.user; 
+        const email = emails[0].value;
+
+        // 1. เช็คว่ามีผู้ใช้นี้ในระบบหรือยัง
+        let result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        let user;
+
+        if (result.rows.length === 0) {
+            // 2. ถ้ายังไม่มี ให้สร้างบัญชีใหม่ (กำหนด kyc_status เป็น not_submitted)
+            const newUser = await pool.query(
+                `INSERT INTO users (full_name, email, google_id, role, kyc_status) 
+                 VALUES ($1, $2, $3, 'user', 'not_submitted') RETURNING *`,
+                [displayName, email, id]
+            );
+            user = newUser.rows[0];
+        } else {
+            user = result.rows[0];
+            // อัปเดต google_id ถ้ายังไม่มี
+            if (!user.google_id) {
+                await pool.query("UPDATE users SET google_id = $1 WHERE id = $2", [id, user.id]);
+            }
+        }
+
+        // 3. สร้าง JWT Token เหมือนตอน Login ปกติ
+        const token = jwt.sign(
+            { id: user.id, email: user.email, role: user.role, kyc_status: user.kyc_status },
+            process.env.JWT_SECRET,
+            { expiresIn: "1d" }
+        );
+
+        // 4. ส่ง Token กลับไป (ปกติ Social Login จะ Redirect กลับไปที่หน้าบ้านพร้อม Token)
+        res.redirect(`http://localhost:3000/login-success?token=${token}`);
+
+    } catch (err) {
+        console.error("SOCIAL LOGIN ERROR:", err.message);
+        res.status(500).json({ message: "Social Login ล้มเหลว" });
+    }
+};
+
+// =============================
 // 📌 UPLOAD KYC
 // =============================
 export const uploadKYC = async (req, res) => {
