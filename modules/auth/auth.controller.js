@@ -134,21 +134,9 @@ export const register = async (req, res) => {
        RETURNING id, full_name, email, phone, role, kyc_status`,
       [full_name, email, phone, address, hashedPassword]
     );
-<<<<<<< HEAD
     res.status(201).json({ message: "ลงทะเบียนสำเร็จ", user: result.rows[0] });
   } catch (err) {
     res.status(500).json({ error: err.message });
-=======
-
-    res.status(201).json({
-      message: "ลงทะเบียนสำเร็จ",
-      user: result.rows[0]
-    });
-
-  } catch (err) {
-    console.error("REGISTER ERROR:", err);
-    res.status(500).json({ message: "เกิดข้อผิดพลาดในการลงทะเบียน" });
->>>>>>> main
   }
 };
 
@@ -159,84 +147,26 @@ export const register = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-<<<<<<< HEAD
     const result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
     if (result.rows.length === 0) {
       return res.status(400).json({ message: "ไม่พบผู้ใช้งาน" });
-=======
-
-    // ❌ ตรวจ input
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password required"
-      });
-    }
-
-    // 🔎 หา user
-    const result = await pool.query(
-      `SELECT id, full_name, email, password, role, kyc_status
-       FROM users
-       WHERE LOWER(email) = LOWER($1)`,
-      [email]
-    );
-
-    if (result.rowCount === 0) {
-      return res.status(400).json({
-        message: "Invalid email or password"
-      });
->>>>>>> main
     }
     const user = result.rows[0];
-<<<<<<< HEAD
-=======
-
-    // 🔒 เช็ครหัสผ่าน
->>>>>>> main
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-<<<<<<< HEAD
       return res.status(400).json({ message: "รหัสผ่านไม่ถูกต้อง" });
     }
-=======
-      return res.status(400).json({
-        message: "Invalid email or password"
-      });
-    }
-
-    // ❌ ตรวจ JWT_SECRET
-    if (!process.env.JWT_SECRET) {
-      console.error("JWT_SECRET not set");
-      return res.status(500).json({
-        message: "Server configuration error"
-      });
-    }
-
-    // 🔑 สร้าง JWT
->>>>>>> main
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role, kyc_status: user.kyc_status },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
-<<<<<<< HEAD
     res.json({
       message: "เข้าสู่ระบบสำเร็จ",
-=======
-
-    res.status(200).json({
-      message: "Login successful",
->>>>>>> main
       token,
       user: { id: user.id, full_name: user.full_name, role: user.role, kyc_status: user.kyc_status }
     });
   } catch (err) {
-<<<<<<< HEAD
     res.status(500).json({ message: "การเข้าสู่ระบบล้มเหลว" });
-=======
-    console.error("LOGIN ERROR:", err);
-    res.status(500).json({
-      message: "Login failed"
-    });
->>>>>>> main
   }
 };
