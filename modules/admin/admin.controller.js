@@ -1,93 +1,70 @@
 import pool from "../../config/db.js";
 
-
-// =============================
-// 📌 ดูรายการ KYC ที่รออนุมัติ
-// =============================
+// ฟังก์ชันดึงรายการที่รอตรวจสอบ (KYC-1-004)
 export const viewPendingKYC = async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT id, full_name, email, kyc_status
-       FROM users
-       WHERE kyc_status = 'pending'
-       ORDER BY id ASC`
-    );
-
-    res.status(200).json({
-      pending_users: result.rows,
-      total: result.rowCount
-    });
-
-  } catch (err) {
-    console.error("viewPendingKYC error:", err);
-    res.status(500).json({
-      message: "Failed to fetch pending users"
-    });
-  }
+    try {
+        const result = await pool.query(
+            `SELECT id, full_name, email, id_card_number, id_card_image, face_image, kyc_status 
+             FROM users 
+             WHERE kyc_status = 'pending'
+             ORDER BY id ASC` // เพิ่มการเรียงลำดับเพื่อให้หน้าบ้านแสดงผลไม่กระโดด
+        );
+        
+        res.status(200).json({ 
+            success: true,
+            count: result.rowCount,
+            pending_users: result.rows 
+        });
+    } catch (err) {
+        console.error("View Pending Error:", err.message);
+        res.status(500).json({ success: false, message: "ไม่สามารถดึงข้อมูลผู้ใช้ที่รอตรวจสอบได้" });
+    }
 };
 
-
-
-// ==================================
-// 📌 Admin อนุมัติ หรือ ปฏิเสธ KYC
-// ==================================
+// ฟังก์ชันอนุมัติหรือปฏิเสธ KYC
 export const approveRejectKYC = async (req, res) => {
-  try {
-    const userId = Number(req.params.id);
+    const userId = req.params.id;
     const { status } = req.body;
 
-    // ❌ id ไม่ถูกต้อง
-    if (!Number.isInteger(userId) || userId <= 0) {
-      return res.status(400).json({
-        message: "Invalid user id"
-      });
+    try {
+        // 1. ตรวจสอบสถานะที่ส่งมา
+        if (!['approved', 'rejected'].includes(status)) {
+            return res.status(400).json({
+                success: false,
+                message: "สถานะต้องเป็น 'approved' หรือ 'rejected' เท่านั้น"
+            });
+        }
+
+        // 2. อัปเดตฐานข้อมูล
+        const result = await pool.query(
+            `UPDATE users
+             SET kyc_status = $1,
+                 updated_at = NOW() -- เก็บเวลาที่ Admin ตรวจสอบ
+             WHERE id = $2
+             RETURNING id, full_name, email, kyc_status`,
+            [status, userId]
+        );
+
+        // 3. เช็คว่าเจอ User หรือไม่
+        if (result.rowCount === 0) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "ไม่พบข้อมูลผู้ใช้งานในระบบ" 
+            });
+        }
+
+        // 4. ส่งผลลัพธ์กลับไปให้หน้าบ้านอัปเดต UI
+        res.status(200).json({
+            success: true,
+            message: `เปลี่ยนสถานะเป็น ${status === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ'} เรียบร้อยแล้ว`,
+            user: result.rows[0]
+        });
+
+    } catch (err) {
+        console.error("Update KYC Error:", err.message);
+        res.status(500).json({ 
+            success: false, 
+            message: "เกิดข้อผิดพลาดในการอัปเดตสถานะในระบบฐานข้อมูล" 
+        });
     }
-
-    // ❌ status ต้องเป็น approved หรือ rejected เท่านั้น
-    if (!["approved", "rejected"].includes(status)) {
-      return res.status(400).json({
-        message: "Status must be 'approved' or 'rejected'"
-      });
-    }
-
-    // 🔎 ตรวจว่า user มีอยู่และอยู่ในสถานะ pending
-    const checkUser = await pool.query(
-      `SELECT id, kyc_status
-       FROM users
-       WHERE id = $1`,
-      [userId]
-    );
-
-    if (checkUser.rowCount === 0) {
-      return res.status(404).json({
-        message: "User not found"
-      });
-    }
-
-    if (checkUser.rows[0].kyc_status !== "pending") {
-      return res.status(400).json({
-        message: "KYC is not pending"
-      });
-    }
-
-    // ✅ อัปเดตสถานะ
-    const result = await pool.query(
-      `UPDATE users
-       SET kyc_status = $1
-       WHERE id = $2
-       RETURNING id, full_name, email, kyc_status`,
-      [status, userId]
-    );
-
-    res.status(200).json({
-      message: `KYC ${status} successfully`,
-      user: result.rows[0]
-    });
-
-  } catch (err) {
-    console.error("approveRejectKYC error:", err);
-    res.status(500).json({
-      message: "KYC update failed"
-    });
-  }
 };

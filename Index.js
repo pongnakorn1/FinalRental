@@ -1,5 +1,6 @@
 import app from './app.js';
 import pool from './config/db.js';
+import cors from 'cors';
 
 const PORT = 3000;
 
