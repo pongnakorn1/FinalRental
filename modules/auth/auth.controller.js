@@ -4,13 +4,12 @@ import vision from '@google-cloud/vision';
 import pool from '../../config/db.js';
 import path from 'path';
 
-// --- [จุดแก้ไข 1] ตั้งค่า Vision Client ---
-// มั่นใจว่าไฟล์ google-key.json อยู่ในโฟลเดอร์ Root ตามที่เห็นใน Sidebar
+// --- [ตั้งค่า Vision Client] ---
 const client = new vision.ImageAnnotatorClient({ 
-  keyFilename: path.resolve('./google-key.json') // ใช้ path.resolve เพื่อความชัวร์ในการหาไฟล์
+  keyFilename: path.resolve('./google-key.json') 
 });
 
-// --- [จุดแก้ไข 2] ฟังก์ชัน OCR ดึงเลข 13 หลัก ---
+// --- [ฟังก์ชัน OCR ดึงเลข 13 หลัก และเช็ควันหมดอายุ] ---
 const extractIDNumber = async (imagePath) => {
   try {
     console.log("--- เริ่มการสแกน OCR สำหรับไฟล์:", imagePath, "---");
@@ -18,43 +17,48 @@ const extractIDNumber = async (imagePath) => {
     
     if (!result.textAnnotations || result.textAnnotations.length === 0) {
       console.log("OCR: ไม่พบข้อความในรูปภาพ");
-      return null;
+      return { id: null, expired: false };
     }
 
     const fullText = result.textAnnotations[0].description;
     console.log("ข้อความที่ตรวจพบ:", fullText.replace(/\n/g, ' '));
     
-    // ลบทุกอย่างที่ไม่ใช่ตัวเลข แล้วหาตัวเลขที่เรียงกัน 13 หลัก
-    const cleanText = fullText.replace(/[\s-]/g, ''); // ลบช่องว่างและขีดออกก่อน 
-    const match = cleanText.match(/\d{13}/);
-    
-    if (match) {
-      console.log("OCR Success: พบเลขบัตรประชาชน:", match[0]);
-      return match[0];
+    // 1. หาเลขบัตรประชาชน 13 หลัก
+    const cleanText = fullText.replace(/[\s-]/g, ''); 
+    const idMatch = cleanText.match(/\d{13}/);
+    const scannedID = idMatch ? idMatch[0] : null;
+
+    // 2. ตรวจสอบวันหมดอายุ (KYC-1-002) 
+    // มองหาปี ค.ศ. 4 หลัก (เช่น 2029) จากข้อความ "Date of Expiry" หรือที่ปรากฏบนบัตร
+    const years = fullText.match(/20\d{2}/g); 
+    let isExpired = false;
+    if (years) {
+      const currentYear = new Date().getFullYear();
+      const expiryYear = Math.max(...years.map(Number)); // เลือกปีที่มากที่สุดเป็นวันหมดอายุ
+      if (expiryYear < currentYear) {
+        isExpired = true;
+      }
     }
-    
-    console.log("OCR Warning: ตรวจพบข้อความแต่ไม่พบตัวเลข 13 หลักเรียงกัน");
-    return null;
+
+    return { id: scannedID, expired: isExpired };
   } catch (err) {
-    // หากเกิด Error ตรงนี้ ให้เช็คว่าเปิด Vision API ใน Console หรือยัง
     console.error("GOOGLE VISION ERROR:", err.message);
-    return null;
+    return { id: null, expired: false };
   }
 };
 
-// --- [จุดแก้ไข 3] ฟังก์ชัน uploadKYC ---
+// --- [ฟังก์ชัน uploadKYC - สำหรับผู้ใช้ทั่วไป] ---
 export const uploadKYC = async (req, res) => {
   try {
-    // ตรวจสอบว่า req.user ถูกเซ็ตมาจาก middleware หรือไม่
     if (!req.user || !req.user.id) {
       return res.status(401).json({ message: "กรุณาเข้าสู่ระบบก่อนทำรายการ" });
     }
 
     const userId = req.user.id; 
-    const { id_card_number, is_live_photo } = req.body; 
+    const { id_card_number } = req.body; 
     const files = req.files;
 
-    // 1. ตรวจสอบไฟล์รูปภาพ
+    // ตรวจสอบไฟล์ (KYC-1-001)
     if (!files || !files.id_card_image || !files.face_image) {
       return res.status(400).json({ message: "กรุณาอัปโหลดทั้งรูปบัตรประชาชนและรูป Selfie" });
     }
@@ -62,30 +66,31 @@ export const uploadKYC = async (req, res) => {
     const idCardPath = files.id_card_image[0].path;
     const faceImagePath = files.face_image[0].path;
 
-    // 2. เริ่มกระบวนการ OCR (สแกนหาเลขบัตรอัตโนมัติ)
-    const scannedID = await extractIDNumber(idCardPath);
+    // เริ่มกระบวนการ OCR
+    const ocrResult = await extractIDNumber(idCardPath);
     
-    // เลือกใช้เลขบัตร: ใช้จาก OCR ถ้าเจอ ถ้าไม่เจอให้ใช้ค่าที่ผู้ใช้พิมพ์มา (id_card_number)
-    let finalIDNumber = scannedID || id_card_number;
-
-    if (!finalIDNumber) {
-      return res.status(400).json({ 
-        message: "ระบบสแกนเลขบัตรไม่สำเร็จ และไม่มีเลขบัตรที่กรอกด้วยตนเอง",
-        scannedID: null 
-      });
+    // ตรวจสอบวันหมดอายุ (KYC-1-002)
+    if (ocrResult.expired) {
+      return res.status(400).json({ message: "บัตรประชาชนหมดอายุแล้ว ไม่สามารถใช้งานได้" });
     }
 
-    // 3. ตรวจสอบเลขบัตรซ้ำในฐานข้อมูล (ยกเว้นของตัวเอง)
+    let finalIDNumber = ocrResult.id || id_card_number;
+
+    if (!finalIDNumber) {
+      return res.status(400).json({ message: "ระบบสแกนเลขบัตรไม่สำเร็จ และไม่ได้กรอกเลขบัตร" });
+    }
+
+    // ตรวจสอบเลขบัตรซ้ำในระบบ (KYC-1-003)
     const duplicateCheck = await pool.query(
       "SELECT id FROM users WHERE id_card_number = $1 AND id != $2",
       [finalIDNumber, userId]
     );
 
     if (duplicateCheck.rows.length > 0) {
-      return res.status(400).json({ message: "เลขบัตรประชาชนนี้ถูกใช้งานในระบบแล้ว" });
+      return res.status(400).json({ message: "เลขบัตรประชาชนนี้ถูกใช้งานในระบบแล้ว กรุณาติดต่อเจ้าหน้าที่" });
     }
 
-    // 4. บันทึกข้อมูลและอัปเดตสถานะเป็น 'pending'
+    // บันทึกข้อมูลและเปลี่ยนสถานะเป็น pending เพื่อรอ Admin (KYC-1-004)
     const result = await pool.query(
       `UPDATE users 
        SET id_card_number = $1, 
@@ -97,11 +102,11 @@ export const uploadKYC = async (req, res) => {
       [finalIDNumber, idCardPath, faceImagePath, userId]
     );
 
-    console.log(`KYC SUCCESS: อัปเดต User ID ${userId} สำเร็จ`);
+    console.log(`KYC PENDING: User ID ${userId} ส่งข้อมูลสำเร็จ`);
 
     res.json({
-      message: scannedID ? "สแกนและบันทึกข้อมูลสำเร็จ" : "บันทึกข้อมูลสำเร็จ (สแกนอัตโนมัติไม่สำเร็จ)",
-      scannedID: scannedID, // ส่งกลับไปหน้าบ้านเพื่อ Auto-fill
+      message: ocrResult.id ? "สแกนและส่งข้อมูลตรวจสอบสำเร็จ" : "บันทึกข้อมูลสำเร็จ (สแกนอัตโนมัติไม่สำเร็จ)",
+      scannedID: ocrResult.id,
       data: result.rows[0]
     });
 
@@ -111,7 +116,7 @@ export const uploadKYC = async (req, res) => {
   }
 };
 
-// --- ฟังก์ชัน Register และ Login คงเดิมตามที่คุณส่งมา ---
+// --- [Register & Login] ---
 export const register = async (req, res) => {
   try {
     const { full_name, email, phone, address, password } = req.body;
@@ -131,7 +136,6 @@ export const register = async (req, res) => {
     );
     res.status(201).json({ message: "ลงทะเบียนสำเร็จ", user: result.rows[0] });
   } catch (err) {
-    console.error("REGISTER ERROR:", err.message);
     res.status(500).json({ error: err.message });
   }
 };
@@ -159,7 +163,6 @@ export const login = async (req, res) => {
       user: { id: user.id, full_name: user.full_name, role: user.role, kyc_status: user.kyc_status }
     });
   } catch (err) {
-    console.error("LOGIN ERROR:", err.message);
     res.status(500).json({ message: "การเข้าสู่ระบบล้มเหลว" });
   }
 };
