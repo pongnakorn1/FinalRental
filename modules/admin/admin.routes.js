@@ -1,5 +1,9 @@
 import express from "express";
 import { 
+    viewPendingKYC, 
+    approveRejectKYC, 
+    suspendUser 
+} from './admin.controller.js';
   viewPendingKYC, 
   approveRejectKYC 
 } from './admin.controller.js';
@@ -11,11 +15,16 @@ import {
   decideDispute 
 } from './dispute.controller.js'; 
 
+// ✅ ตัด verifyToken ออก และใช้ authenticateToken ตัวเดียวให้ครอบคลุม
 import { authenticateToken } from "../../middleware/auth.middleware.js";
 import { requireAdmin } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
 
+// 🚀 เส้นทางสำหรับระงับผู้ใช้งาน (ใส่ requireAdmin ไว้เพื่อความปลอดภัย)
+router.post('/suspend/:id', authenticateToken, requireAdmin, suspendUser);
+
+// 📋 เส้นทางสำหรับดูรายการ KYC ที่รออนุมัติ
 // --- ส่วนของ KYC (เดิม) ---
 router.get(
   "/kyc/pending",
@@ -24,6 +33,7 @@ router.get(
   viewPendingKYC
 );
 
+// ✅ เส้นทางสำหรับอนุมัติหรือปฏิเสธ KYC
 router.patch(
   "/kyc/:id",
   authenticateToken,

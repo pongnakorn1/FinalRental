@@ -16,9 +16,14 @@ import productRoutes from './modules/product/product.routes.js';
 import rentalRoutes from './modules/rental/rental.routes.js';
 import paymentRoutes from './modules/payment/payment.routes.js';
 import chatRoutes from './modules/chat/chat.routes.js';
+import moneyRoutes from './modules/money/money.routes.js';
+import autoRefundRoutes from "./modules/Interval/setInterval.route.js";
+import { processAutoRefunds } from "./modules/Interval/setInterval.controller.js";
+import reviewRoutes from "./modules/Review/review.route.js";
 
 const app = express();
 
+app.use("/api/interval", autoRefundRoutes);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -56,6 +61,15 @@ app.use('/api/products', productRoutes);
 app.use('/api/rentals', rentalRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/money', moneyRoutes);
+app.use("/api/reviews", reviewRoutes);
+
+
+// ระบบเวลา
+const ONE_HOUR = 60 * 60 * 1000;
+setInterval(processAutoRefunds, ONE_HOUR);
+// รันทันที 1 รอบตอนเปิดเครื่องเพื่อเคลียร์ค้างเก่า
+processAutoRefunds();
 
 // 3. Centralized Error Handling
 app.use((err, req, res, next) => {

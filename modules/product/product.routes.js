@@ -7,6 +7,7 @@ import {
   deleteProduct
 } from './product.controller.js';
 
+import { toggleProductStatus } from './product.controller.js';
 import { authenticateToken } from '../../middleware/auth.middleware.js';
 import { requireVerified } from '../../middleware/verified.middleware.js';
 
@@ -26,5 +27,8 @@ router.put('/:id', authenticateToken, requireVerified, updateProduct);
 
 // 📌 ลบสินค้า
 router.delete('/:id', authenticateToken, requireVerified, deleteProduct);
+
+// 📌 สลับสถานะการให้เช่า
+router.patch('/:id/toggle', authenticateToken, toggleProductStatus);
 
 export default router;
