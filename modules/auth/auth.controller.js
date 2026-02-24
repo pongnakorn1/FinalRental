@@ -1,50 +1,60 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import vision from '@google-cloud/vision';
-import path from 'path';
 import admin from 'firebase-admin';
 import pool from "../../config/db.js";
 
-// --- [ตั้งค่า Firebase Admin] ---
+// =============================
+// 🔥 Firebase Admin (ใช้ ENV)
+// =============================
 if (!admin.apps.length) {
+    const serviceAccount = JSON.parse(
+        process.env.FIREBASE_SERVICE_ACCOUNT
+    );
+
     admin.initializeApp({
-        credential: admin.credential.cert(path.resolve('./firebase-key.json'))
+        credential: admin.credential.cert(serviceAccount),
     });
 }
 
-// --- [ตั้งค่า Vision Client] ---
-const client = new vision.ImageAnnotatorClient({ 
-    keyFilename: path.resolve('./google-key.json') 
+// =============================
+// 🔥 Google Vision (ใช้ ENV)
+// =============================
+const visionClient = new vision.ImageAnnotatorClient({
+    credentials: JSON.parse(process.env.GOOGLE_VISION_KEY),
 });
 
-// --- [ฟังก์ชันภายใน: OCR สแกนบัตรประชาชน] ---
+// =============================
+// 📌 OCR Function
+// =============================
 const extractIDNumber = async (imagePath) => {
     try {
-        const [result] = await client.textDetection(imagePath);
+        const [result] = await visionClient.textDetection(imagePath);
+
         if (!result.textAnnotations || result.textAnnotations.length === 0) {
             return { id: null, expired: false };
         }
 
         const fullText = result.textAnnotations[0].description;
-        const cleanText = fullText.replace(/[\s-]/g, ''); 
+        const cleanText = fullText.replace(/[\s-]/g, "");
         const idMatch = cleanText.match(/\d{13}/);
         const scannedID = idMatch ? idMatch[0] : null;
 
-        // เช็ควันหมดอายุ
-        const years = fullText.match(/20\d{2}/g); 
+        const years = fullText.match(/20\d{2}/g);
         let isExpired = false;
+
         if (years) {
             const currentYear = new Date().getFullYear();
-            const expiryYear = Math.max(...years.map(Number)); 
+            const expiryYear = Math.max(...years.map(Number));
             if (expiryYear < currentYear) isExpired = true;
         }
+
         return { id: scannedID, expired: isExpired };
     } catch (err) {
         console.error("OCR ERROR:", err.message);
         return { id: null, expired: false };
     }
 };
-
 // =============================
 // 📌 REGISTER (รองรับทั้งแบบปกติ และ Firebase OTP)
 // =============================
