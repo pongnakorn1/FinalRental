@@ -1,2 +1,5 @@
 node_modules/
 .env
+uploads/
+google-key.json
+firebase-key.json
