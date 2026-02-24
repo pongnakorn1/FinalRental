@@ -15,5 +15,8 @@
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.18.0",
     "twilio": "^5.12.2"
-  }
+  },
+  "scripts": {
+  "start": "node index.js"
+}
 }

@@ -1,69 +1,52 @@
 import express from "express";
+// 1. รวมการ Import จาก Controller ทั้งหมดไว้ที่เดียว
 import { 
     viewPendingKYC, 
     approveRejectKYC, 
     suspendUser 
 } from './admin.controller.js';
-  viewPendingKYC, 
-  approveRejectKYC 
-} from './admin.controller.js';
 
-// เพิ่มการ import ฟังก์ชันจาก dispute controller ที่เราเพิ่งสร้าง
 import { 
-  getAllDisputes, 
-  getDisputeById, 
-  decideDispute 
+    getAllDisputes, 
+    getDisputeById, 
+    decideDispute 
 } from './dispute.controller.js'; 
 
-// ✅ ตัด verifyToken ออก และใช้ authenticateToken ตัวเดียวให้ครอบคลุม
+// 2. Import Middleware
 import { authenticateToken } from "../../middleware/auth.middleware.js";
 import { requireAdmin } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
 
-// 🚀 เส้นทางสำหรับระงับผู้ใช้งาน (ใส่ requireAdmin ไว้เพื่อความปลอดภัย)
-router.post('/suspend/:id', authenticateToken, requireAdmin, suspendUser);
+// ใช้ Middleware ตรวจสอบ Admin กับทุก Route ในไฟล์นี้เพื่อความปลอดภัย
+router.use(authenticateToken);
+router.use(requireAdmin);
 
-// 📋 เส้นทางสำหรับดูรายการ KYC ที่รออนุมัติ
-// --- ส่วนของ KYC (เดิม) ---
-router.get(
-  "/kyc/pending",
-  authenticateToken,
-  requireAdmin,
-  viewPendingKYC
-);
+// ==========================================
+// 📌 ส่วนของ User Management & KYC
+// ==========================================
 
-// ✅ เส้นทางสำหรับอนุมัติหรือปฏิเสธ KYC
-router.patch(
-  "/kyc/:id",
-  authenticateToken,
-  requireAdmin,
-  approveRejectKYC
-);
+// ดูรายการ KYC ที่รออนุมัติ
+router.get("/kyc/pending", viewPendingKYC);
 
-// --- ส่วนของ Dispute Judge (เพิ่มใหม่ AD-2) ---
+// อนุมัติหรือปฏิเสธ KYC
+router.put("/kyc/:id", approveRejectKYC);
+
+// ระงับการใช้งานผู้ใช้ (เปลี่ยนเป็น PATCH หรือ POST ตามที่คุณออกแบบ)
+router.post('/suspend/:id', suspendUser);
+
+
+// ==========================================
+// 📌 ส่วนของ Dispute Judge (ระบบตัดสินข้อพิพาท)
+// ==========================================
+
 // 1. ดูรายการข้อพิพาททั้งหมด
-router.get(
-  "/disputes",
-  authenticateToken,
-  requireAdmin,
-  getAllDisputes
-);
+router.get("/disputes", getAllDisputes);
 
 // 2. ดูรายละเอียดหลักฐานรายเคส (AD-2-001)
-router.get(
-  "/disputes/:id",
-  authenticateToken,
-  requireAdmin,
-  getDisputeById
-);
+router.get("/disputes/:id", getDisputeById);
 
 // 3. ตัดสินข้อพิพาท (Approve/Refund/Reject)
-router.patch(
-  "/disputes/:id/decide",
-  authenticateToken,
-  requireAdmin,
-  decideDispute
-);
+router.patch("/disputes/:id/decide", decideDispute);
 
 export default router;

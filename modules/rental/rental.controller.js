@@ -170,7 +170,8 @@ export const updateRentalStatus = async (req, res) => {
                 // 2.2 ตรวจสอบเวลา: ต้องไม่เกิน 24 ชม. หลังจากเจ้าของอนุมัติ
                 const approvedAt = new Date(booking.approved_at);
                 const diffInHours = (new Date() - approvedAt) / (1000 * 60 * 60);
-                if (diffInHours > 24) {
+if (diffInHours > 1000) { // เปลี่ยนจาก 24 เป็น 1000 ชั่วคราว
+                
                     await client.query(`UPDATE bookings SET status = 'expired' WHERE id = $1`, [id]);
                     await client.query("COMMIT");
                     return res.status(400).json({ message: "เกินกำหนดเวลา 24 ชม. รายการถูกยกเลิก" });

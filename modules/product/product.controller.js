@@ -251,6 +251,7 @@ export const deleteProduct = async (req, res) => {
     client.release();
   }
 };
+
 // =============================
 // 📌 TOGGLE PRODUCT STATUS (แก้ไขสิทธิ์การเข้าถึง ✅)
 // =============================
@@ -284,4 +285,6 @@ export const toggleProductStatus = async (req, res) => {
         console.error(err);
         res.status(500).json({ message: "Toggle failed" });
     }
+
+  
 };
