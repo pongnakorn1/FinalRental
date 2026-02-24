@@ -15,7 +15,7 @@ import shopRoutes from './modules/shop/shop.routes.js';
 import productRoutes from './modules/product/product.routes.js';
 import rentalRoutes from './modules/rental/rental.routes.js';
 import paymentRoutes from './modules/payment/payment.routes.js';
-import chatRoutes from './modules/chat/chat.routes.js';
+import chatRoutes from './modules/chat/chat.Routes.js';
 import moneyRoutes from './modules/money/money.routes.js';
 import autoRefundRoutes from "./modules/Interval/setInterval.route.js";
 import { processAutoRefunds } from "./modules/Interval/setInterval.controller.js";
