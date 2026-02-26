@@ -1,12 +1,12 @@
 import express from 'express';
-import passport from 'passport'; // ✅ ต้อง import passport เข้ามาด้วย
-import { register, login, uploadKYC, socialLogin } from './auth.controller.js'; // ✅ เพิ่ม socialLogin
+import passport from 'passport'; 
+import { register, login, uploadKYC, socialLogin } from './auth.controller.js'; 
 import { authenticateToken } from '../../middleware/auth.middleware.js'; 
 import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
 import path from 'path';
 
-const router = express.Router();
+const router = express.Router(); // ✅ ประกาศตัวแปร router ก่อนเริ่มกำหนดเส้นทาง (Routes)
 
 // --- [ 1. ตั้งค่า Multer สำหรับ KYC ] ---
 const storage = multer.diskStorage({
@@ -42,23 +42,27 @@ router.post('/login', login);
 router.post('/request-otp', requestOTP);
 router.post('/verify-otp', verifyOTP);
 
-// --- [ 4. Routes สำหรับ Social Login (Google) ] ---
-// หน้าไปเลือกบัญชี Google
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+// --- [ 4. Routes สำหรับ Social Login ] ---
 
-// Callback หลังจาก Google ยืนยันสำเร็จ
+// --- Google ---
+router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get('/google/callback', 
     passport.authenticate('google', { failureRedirect: '/login', session: false }),
-    socialLogin // ✅ เรียกใช้ฟังก์ชัน socialLogin ที่เราเขียนไว้ใน Controller ได้เลย
+    socialLogin
 );
 
-// หน้าไปเลือกบัญชี Facebook
+// --- Facebook ---
 router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
-
-// Callback หลังจาก Facebook ยืนยันสำเร็จ
 router.get('/facebook/callback', 
     passport.authenticate('facebook', { failureRedirect: '/login', session: false }),
-    socialLogin // ใช้ฟังก์ชันเดิมที่คุณเขียนไว้ได้เลย เพราะรองรับ email/displayName อยู่แล้ว
+    socialLogin
+);
+
+// --- LINE ---
+router.get('/line', passport.authenticate('line'));
+router.get('/line/callback', 
+    passport.authenticate('line', { failureRedirect: '/login', session: false }),
+    socialLogin
 );
 
 // --- [ 5. Route สำหรับ KYC (ต้อง Login ก่อน) ] ---
