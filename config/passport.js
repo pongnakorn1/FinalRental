@@ -33,7 +33,7 @@ passport.use(new LineStrategy({
     channelID: process.env.LINE_CHANNEL_ID,      // แก้จาก CLIENT เป็น CHANNEL ให้ตรงกับ Render
     channelSecret: process.env.LINE_CHANNEL_SECRET, // แก้จาก CLIENT เป็น CHANNEL ให้ตรงกับ Render
     callbackURL: process.env.LINE_CALLBACK_URL,
-    scope: ['profile', 'openid', 'email'],
+    scope: ['profile', 'openid'],
     state: false // ✨ ตัวนี้คือหัวใจสำคัญที่แก้ Error ในรูป image_619b9a.png ครับ
 },
 async (accessToken, refreshToken, params, profile, done) => {
