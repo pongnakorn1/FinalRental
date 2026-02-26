@@ -30,12 +30,11 @@ passport.use(new FacebookStrategy({
 ));
 
 passport.use(new LineStrategy({
-    channelID: process.env.LINE_CHANNEL_ID,      // แก้จาก CLIENT_ID เป็น CHANNEL_ID
-    channelSecret: process.env.LINE_CHANNEL_SECRET, // แก้จาก CLIENT_SECRET เป็น CHANNEL_SECRET
+    channelID: process.env.LINE_CHANNEL_ID,
+    channelSecret: process.env.LINE_CHANNEL_SECRET,
     callbackURL: process.env.LINE_CALLBACK_URL,
     scope: ['profile', 'openid', 'email'],
-    state: false
-    // สำคัญ: บาง Strategy ของ LINE อาจต้องการสิทธิ์เพิ่มเติมเพื่อดึง Email
+    state: false // ✨ ตัวนี้คือหัวใจสำคัญที่แก้ Error ในรูป image_619b9a.png ครับ
 },
 async (accessToken, refreshToken, params, profile, done) => {
     try {
