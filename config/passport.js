@@ -4,6 +4,8 @@ import { Strategy as FacebookStrategy } from 'passport-facebook';
 import { Strategy as LineStrategy } from 'passport-line-auth';
 import 'dotenv/config';
 
+console.log("Current Callback URL:", process.env.GOOGLE_CALLBACK_URL);
+
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
