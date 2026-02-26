@@ -164,38 +164,56 @@ export const login = async (req, res) => {
 };
 
 // =============================
-// 📌 GOOGLE SOCIAL LOGIN
+// 📌 SOCIAL LOGIN (Google, Facebook, LINE)
 // =============================
 export const socialLogin = async (req, res) => {
     try {
-        const { displayName, emails, id } = req.user; 
-        const email = emails[0].value;
+        // ดึงค่าจาก passport (ดักจับโครงสร้างที่ต่างกันเล็กน้อยของแต่ละเจ้า)
+        const { displayName, emails, id, provider } = req.user; 
+        
+        // Facebook บางคนอาจไม่ให้ Email หรือไม่มี Email ใน Profile
+        const email = (emails && emails.length > 0) ? emails[0].value : null;
 
+        if (!email) {
+            return res.redirect(`${process.env.CLIENT_URL}/login?error=no_email`);
+        }
+
+        // 🔍 1. ค้นหาผู้ใช้จาก Email
         let result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
         let user;
 
+        // กำหนดชื่อคอลัมน์ตาม Provider (google_id, facebook_id, line_id)
+        const idColumn = `${provider}_id`; 
+
         if (result.rows.length === 0) {
+            // ✨ 2. ถ้ายังไม่มี User ให้ INSERT ใหม่ (ใช้ [] ครอบชื่อตัวแปรเพื่อให้เป็น Dynamic Column)
             const newUser = await pool.query(
-                `INSERT INTO users (full_name, email, google_id, role, kyc_status) 
+                `INSERT INTO users (full_name, email, ${idColumn}, role, kyc_status) 
                  VALUES ($1, $2, $3, 'user', 'not_submitted') RETURNING *`,
                 [displayName, email, id]
             );
             user = newUser.rows[0];
+            
+            // สร้าง Wallet ให้สมาชิกใหม่
             await pool.query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0)", [user.id]);
         } else {
+            // 🔄 3. ถ้ามี User แล้ว ให้ตรวจสอบว่ามี ID ของเจ้านี้หรือยัง
             user = result.rows[0];
-            if (!user.google_id) {
-                await pool.query("UPDATE users SET google_id = $1 WHERE id = $2", [id, user.id]);
+            if (!user[idColumn]) {
+                await pool.query(`UPDATE users SET ${idColumn} = $1 WHERE id = $2`, [id, user.id]);
             }
         }
 
+        // 🎫 4. สร้าง JWT Token
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role, kyc_status: user.kyc_status },
             process.env.JWT_SECRET,
             { expiresIn: "1d" }
         );
 
+        // 🚀 5. Redirect กลับไปหน้าบ้าน
         res.redirect(`${process.env.CLIENT_URL}/login-success?token=${token}`);
+        
     } catch (err) {
         console.error("SOCIAL LOGIN ERROR:", err);
         res.status(500).json({ message: "Social Login ล้มเหลว" });
