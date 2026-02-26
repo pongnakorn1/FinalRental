@@ -29,7 +29,7 @@ passport.use(new FacebookStrategy({
   }
 ));
 
-ppassport.use(new LineStrategy({
+passport.use(new LineStrategy({
     channelID: process.env.LINE_CHANNEL_ID,      // แก้จาก CLIENT_ID เป็น CHANNEL_ID
     channelSecret: process.env.LINE_CHANNEL_SECRET, // แก้จาก CLIENT_SECRET เป็น CHANNEL_SECRET
     callbackURL: process.env.LINE_CALLBACK_URL,
