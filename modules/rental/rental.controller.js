@@ -149,7 +149,7 @@ export const updateRentalStatus = async (req, res) => {
                     return res.status(403).json({ message: "Only owner can approve" });
                 }
                 // 1.2 เช็คสถานะ: ต้องเป็น pending เท่านั้น
-                if (booking.status !== 'pending') {
+                if (booking.status !== 'pending_owner') {
                     await client.query("ROLLBACK");
                     return res.status(400).json({ message: "Status must be pending" });
                 }
@@ -169,6 +169,10 @@ export const updateRentalStatus = async (req, res) => {
                 }
                 // 2.2 ตรวจสอบเวลา: ต้องไม่เกิน 24 ชม. หลังจากเจ้าของอนุมัติ
                 const approvedAt = new Date(booking.approved_at);
+                if (!booking.approved_at) {
+    await client.query("ROLLBACK");
+    return res.status(400).json({ message: "รายการนี้ยังไม่ได้รับการอนุมัติจากเจ้าของ" });
+}
                 const diffInHours = (new Date() - approvedAt) / (1000 * 60 * 60);
 if (diffInHours > 1000) { // เปลี่ยนจาก 24 เป็น 1000 ชั่วคราว
                 
