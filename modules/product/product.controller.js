@@ -1,58 +1,82 @@
 import pool from "../../config/db.js";
-
+import sharp from "sharp";
+import path from "path";
+import fs from "fs";
 
 // =============================
-// 📌 CREATE PRODUCT
+// 📌 CREATE PRODUCT 
 // =============================
 export const createProduct = async (req, res) => {
   try {
     const { name, description, price_per_day, quantity } = req.body;
     const userId = req.user.id;
+    const files = req.files; // ไฟล์ดิบจาก Multer (25MB)
 
+    // 1. Validation พื้นฐาน
     if (!name || !price_per_day || quantity === undefined) {
-      return res.status(400).json({
-        message: "Name, price_per_day and quantity required"
-      });
+      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
     }
 
-    if (price_per_day <= 0 || quantity < 0) {
-      return res.status(400).json({
-        message: "Invalid price or quantity"
-      });
+    // 2. ตรวจสอบจำนวนรูป (4-10 รูป)
+    if (!files || files.length < 4) {
+      return res.status(400).json({ message: "ต้องอัปโหลดรูปภาพสินค้าอย่างน้อย 4 รูป" });
+    }
+    if (files.length > 10) {
+      return res.status(400).json({ message: "อัปโหลดรูปภาพได้ไม่เกิน 10 รูป" });
     }
 
-    // 🔎 หา shop ของ owner
-    const shopResult = await pool.query(
-      "SELECT id FROM shops WHERE owner_id = $1",
-      [userId]
-    );
-
+    // 3. ตรวจสอบร้านค้า
+    const shopResult = await pool.query("SELECT id FROM shops WHERE owner_id = $1", [userId]);
     if (shopResult.rowCount === 0) {
-      return res.status(400).json({
-        message: "You don't have a shop"
-      });
+      return res.status(400).json({ message: "ไม่พบร้านค้าของคุณ" });
     }
-
     const shopId = shopResult.rows[0].id;
 
+    // 4. 🔥 ประมวลผลรูปภาพด้วย Sharp (ย่อขนาด + แปลงเป็น WebP)
+    const processedImageUrls = await Promise.all(
+      files.map(async (file) => {
+        const fileName = `prod-${Date.now()}-${Math.round(Math.random() * 1e9)}.webp`;
+        const outputPath = path.join("uploads/products", fileName);
+
+        await sharp(file.path)
+          .resize(1280, 1280, { fit: "inside", withoutEnlargement: true }) // ย่อขนาดแต่ไม่ขยายภาพที่เล็กอยู่แล้ว
+          .webp({ quality: 80 }) // แปลงเป็น WebP คุณภาพ 80%
+          .toFile(outputPath);
+
+        // ลบไฟล์ต้นฉบับ (Temporary file) ที่ Multer เก็บไว้เพื่อประหยัดพื้นที่
+        if (fs.existsSync(file.path)) {
+            fs.unlinkSync(file.path);
+        }
+
+        return `/uploads/products/${fileName}`;
+      })
+    );
+
+    // 5. บันทึกลง Database
     const result = await pool.query(
       `INSERT INTO products
-       (name, description, price_per_day, quantity, shop_id)
-       VALUES ($1, $2, $3, $4, $5)
+       (name, description, price_per_day, quantity, shop_id, images)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [name.trim(), description?.trim() || null, price_per_day, quantity, shopId]
+      [
+        name.trim(),
+        description?.trim() || null,
+        price_per_day,
+        quantity,
+        shopId,
+        JSON.stringify(processedImageUrls)
+      ]
     );
 
     res.status(201).json({
-      message: "Product created successfully",
+      success: true,
+      message: "ลงสินค้าและประมวลผลรูปภาพเรียบร้อยแล้ว",
       product: result.rows[0]
     });
 
   } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      message: "Product creation failed"
-    });
+    console.error("Create Product Error:", err);
+    res.status(500).json({ message: "เกิดข้อผิดพลาดในการสร้างสินค้า" });
   }
 };
 
