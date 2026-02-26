@@ -29,17 +29,21 @@ passport.use(new FacebookStrategy({
   }
 ));
 
-passport.use(new LineStrategy({
-    channelID: process.env.LINE_CHANNEL_ID,
-    channelSecret: process.env.LINE_CHANNEL_SECRET,
+ppassport.use(new LineStrategy({
+    channelID: process.env.LINE_CHANNEL_ID,      // แก้จาก CLIENT_ID เป็น CHANNEL_ID
+    channelSecret: process.env.LINE_CHANNEL_SECRET, // แก้จาก CLIENT_SECRET เป็น CHANNEL_SECRET
     callbackURL: process.env.LINE_CALLBACK_URL,
-    scope: ['profile', 'openid', 'email'], // openid กับ email ต้องขอสิทธิ์ใน Console ด้วยนะ
-    botPrompt: 'normal'
-  },
-  async (accessToken, refreshToken, profile, done) => {
-    // profile ของ LINE จะมีค่าเช่น profile.id, profile.displayName, profile.value (email)
-    return done(null, profile);
-  }
-));
+    scope: ['profile', 'openid', 'email'],
+    // สำคัญ: บาง Strategy ของ LINE อาจต้องการสิทธิ์เพิ่มเติมเพื่อดึง Email
+},
+async (accessToken, refreshToken, params, profile, done) => {
+    try {
+        // LINE บางครั้งส่ง email มาใน params.id_token (ขึ้นอยู่กับ Library ที่ใช้)
+        // แต่ปกติ profile.emails[0].value จะมีค่าถ้าตั้งค่าใน Console ถูกต้อง
+        return done(null, profile);
+    } catch (err) {
+        return done(err, null);
+    }
+}));
 
 export default passport;
