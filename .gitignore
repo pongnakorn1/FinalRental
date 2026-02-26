@@ -3,3 +3,4 @@ node_modules/
 uploads/
 google-key.json
 firebase-key.json
+serviceAccountKey.json
