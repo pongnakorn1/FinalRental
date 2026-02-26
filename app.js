@@ -3,7 +3,7 @@ import 'dotenv/config';
 import path from 'path'; 
 import { fileURLToPath } from 'url';
 import cors from 'cors'; 
-import passport from 'passport'; // มีอยู่แล้ว เยี่ยมครับ!
+import passport from './config/passport.js'; // มีอยู่แล้ว เยี่ยมครับ!
 
 // ✅ เพิ่ม 1: Import ไฟล์ตั้งค่า Google Strategy
 // ต้องชี้ path ไปที่ไฟล์ที่คุณเขียน passport.use(new GoogleStrategy(...)) ไว้
