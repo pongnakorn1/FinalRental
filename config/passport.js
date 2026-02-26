@@ -1,7 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
-import { Strategy as LineStrategy } from 'passport-line-auth';
+import { Strategy as LineStrategy } from 'passport-line'; // 👈 เปลี่ยนจาก passport-line-auth เป็น passport-line
 import 'dotenv/config';
 
 console.log("Current Callback URL:", process.env.GOOGLE_CALLBACK_URL);
@@ -34,13 +34,11 @@ passport.use(new LineStrategy({
     channelSecret: process.env.LINE_CHANNEL_SECRET,
     callbackURL: process.env.LINE_CALLBACK_URL,
     scope: ['profile', 'openid', 'email'],
-    state: false,   // 👈 ยืนยันว่าต้องเป็น false
-    pkce: true      // ✨ เพิ่มบรรทัดนี้เพื่อช่วยเรื่องความปลอดภัยเมื่อปิด state
+    // state: false ไม่ต้องใส่แล้วครับ เพราะ Library ตัวนี้อนุญาตให้รันแบบไม่มี session ได้ง่ายกว่า
 },
-async (accessToken, refreshToken, params, profile, done) => {
+async (accessToken, refreshToken, profile, done) => { // 👈 ลบ params ออก เหลือ 4 ตัวแปรมาตรฐาน
     try {
-        // เพิ่ม log เพื่อดูว่าข้อมูลมาถึงไหม
-        console.log("LINE Profile Received:", profile.id);
+        console.log("LINE Profile Success:", profile.id);
         return done(null, profile);
     } catch (err) {
         return done(err, null);
