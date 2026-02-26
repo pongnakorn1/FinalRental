@@ -62,7 +62,7 @@ router.get('/facebook/callback',
 
 // --- LINE ---
 // เพิ่ม Route ให้ตรงกับ Callback URL ที่ตั้งไว้ใน LINE Developers
-router.get('/line', passport.authenticate('line'));
+router.get('/line', passport.authenticate('line', { scope: ['profile', 'openid', 'email'] }));
 router.get('/line/callback', 
     passport.authenticate('line', { failureRedirect: '/login', session: false }),
     socialLogin
