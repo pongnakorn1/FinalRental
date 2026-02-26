@@ -6,9 +6,10 @@ import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
 import path from 'path';
 
-const router = express.Router(); // ✅ ประกาศตัวแปร router ก่อนเริ่มกำหนดเส้นทาง (Routes)
+// ✅ 1. ต้องประกาศ router ก่อนเริ่มกำหนดเส้นทางต่างๆ
+const router = express.Router(); 
 
-// --- [ 1. ตั้งค่า Multer สำหรับ KYC ] ---
+// --- [ 2. ตั้งค่า Multer สำหรับ KYC ] ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, 'uploads/kyc/'); 
@@ -34,17 +35,18 @@ const upload = multer({
   }
 });
 
-// --- [ 2. Routes สำหรับ Authentication ทั่วไป ] ---
+// --- [ 3. Routes สำหรับ Authentication ทั่วไป ] ---
 router.post('/register', register);
 router.post('/login', login);
 
-// --- [ 3. Routes สำหรับ OTP (Twilio/Firebase) ] ---
+// --- [ 4. Routes สำหรับ OTP ] ---
 router.post('/request-otp', requestOTP);
 router.post('/verify-otp', verifyOTP);
 
-// --- [ 4. Routes สำหรับ Social Login ] ---
+// --- [ 5. Routes สำหรับ Social Login ] ---
 
 // --- Google ---
+// ใส่ scope เพื่อแก้ปัญหา "Missing required parameter: scope"
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get('/google/callback', 
     passport.authenticate('google', { failureRedirect: '/login', session: false }),
@@ -59,13 +61,14 @@ router.get('/facebook/callback',
 );
 
 // --- LINE ---
+// เพิ่ม Route ให้ตรงกับ Callback URL ที่ตั้งไว้ใน LINE Developers
 router.get('/line', passport.authenticate('line'));
 router.get('/line/callback', 
     passport.authenticate('line', { failureRedirect: '/login', session: false }),
     socialLogin
 );
 
-// --- [ 5. Route สำหรับ KYC (ต้อง Login ก่อน) ] ---
+// --- [ 6. Route สำหรับ KYC (ต้อง Login ก่อน) ] ---
 router.post(
   '/upload-kyc', 
   authenticateToken, 
