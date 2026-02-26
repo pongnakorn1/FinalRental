@@ -30,16 +30,17 @@ passport.use(new FacebookStrategy({
 ));
 
 passport.use(new LineStrategy({
-    channelID: process.env.LINE_CHANNEL_ID,      // แก้จาก CLIENT เป็น CHANNEL ให้ตรงกับ Render
-    channelSecret: process.env.LINE_CHANNEL_SECRET, // แก้จาก CLIENT เป็น CHANNEL ให้ตรงกับ Render
+    channelID: process.env.LINE_CHANNEL_ID,
+    channelSecret: process.env.LINE_CHANNEL_SECRET,
     callbackURL: process.env.LINE_CALLBACK_URL,
-    scope: ['profile', 'openid'],
-    state: false // ✨ ตัวนี้คือหัวใจสำคัญที่แก้ Error ในรูป image_619b9a.png ครับ
+    scope: ['profile', 'openid', 'email'],
+    state: false,   // 👈 ยืนยันว่าต้องเป็น false
+    pkce: true      // ✨ เพิ่มบรรทัดนี้เพื่อช่วยเรื่องความปลอดภัยเมื่อปิด state
 },
 async (accessToken, refreshToken, params, profile, done) => {
     try {
-        // LINE บางครั้งส่ง email มาใน params.id_token (ขึ้นอยู่กับ Library ที่ใช้)
-        // แต่ปกติ profile.emails[0].value จะมีค่าถ้าตั้งค่าใน Console ถูกต้อง
+        // เพิ่ม log เพื่อดูว่าข้อมูลมาถึงไหม
+        console.log("LINE Profile Received:", profile.id);
         return done(null, profile);
     } catch (err) {
         return done(err, null);
