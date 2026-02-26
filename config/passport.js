@@ -30,8 +30,8 @@ passport.use(new FacebookStrategy({
 ));
 
 passport.use(new LineStrategy({
-    channelID: process.env.LINE_CHANNEL_ID,      // แก้ให้ตรงกับ .env
-    channelSecret: process.env.LINE_CHANNEL_SECRET, // แก้ให้ตรงกับ .env
+    channelID: process.env.LINE_CHANNEL_ID,      // แก้จาก CLIENT เป็น CHANNEL ให้ตรงกับ Render
+    channelSecret: process.env.LINE_CHANNEL_SECRET, // แก้จาก CLIENT เป็น CHANNEL ให้ตรงกับ Render
     callbackURL: process.env.LINE_CALLBACK_URL,
     scope: ['profile', 'openid', 'email'],
     state: false // ✨ ตัวนี้คือหัวใจสำคัญที่แก้ Error ในรูป image_619b9a.png ครับ
