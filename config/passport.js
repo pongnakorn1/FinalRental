@@ -9,7 +9,8 @@ console.log("Current Callback URL:", process.env.GOOGLE_CALLBACK_URL);
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    callbackURL: process.env.GOOGLE_CALLBACK_URL
+    callbackURL: process.env.GOOGLE_CALLBACK_URL,
+    scope: ['profile', 'email'] // เพิ่มบรรทัดนี้เข้าไปตรงนี้ด้วยครับ
   },
   async (accessToken, refreshToken, profile, done) => {
     // ส่งข้อมูล profile ไปให้ controller
