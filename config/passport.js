@@ -34,6 +34,7 @@ passport.use(new LineStrategy({
     channelSecret: process.env.LINE_CHANNEL_SECRET, // แก้จาก CLIENT_SECRET เป็น CHANNEL_SECRET
     callbackURL: process.env.LINE_CALLBACK_URL,
     scope: ['profile', 'openid', 'email'],
+    state: false
     // สำคัญ: บาง Strategy ของ LINE อาจต้องการสิทธิ์เพิ่มเติมเพื่อดึง Email
 },
 async (accessToken, refreshToken, params, profile, done) => {
