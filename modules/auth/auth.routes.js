@@ -61,8 +61,9 @@ router.get('/facebook/callback',
 );
 
 // --- LINE ---
-// เพิ่ม Route ให้ตรงกับ Callback URL ที่ตั้งไว้ใน LINE Developers
-router.get('/line', passport.authenticate('line', { scope: ['profile', 'openid', 'email'] }));
+// ✅ แบบที่ถูกต้อง: ไม่ต้องใส่ {} ต่อท้าย เพื่อให้มันไปดึงค่าจาก passport.js มาใช้ทั้งหมด
+router.get('/line', passport.authenticate('line')); 
+
 router.get('/line/callback', 
     passport.authenticate('line', { failureRedirect: '/login', session: false }),
     socialLogin
