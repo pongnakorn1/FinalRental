@@ -34,11 +34,11 @@ passport.use(new LineStrategy({
     channelSecret: process.env.LINE_CHANNEL_SECRET,
     callbackURL: process.env.LINE_CALLBACK_URL,
     scope: ['profile', 'openid', 'email'],
-    state: false // 👈 เพิ่มบรรทัดนี้เข้าไปครับ เพื่อสั่งปิดการใช้ Session Store
+    state: false // 👈 ขั้นตอนนี้แหละครับคือการ "สั่งปิด state"
 },
 async (accessToken, refreshToken, profile, done) => {
     try {
-        console.log("LINE Profile Success:", profile.id);
+        console.log("LINE Login Success:", profile.id);
         return done(null, profile);
     } catch (err) {
         return done(err, null);
