@@ -20,6 +20,7 @@ import moneyRoutes from './modules/money/money.routes.js';
 import autoRefundRoutes from "./modules/Interval/setInterval.route.js";
 import { processAutoRefunds } from "./modules/Interval/setInterval.controller.js";
 import reviewRoutes from "./modules/Review/review.route.js";
+import session from 'express-session'; // ต้องมี import นี้
 
 const app = express();
 
@@ -80,5 +81,14 @@ app.use((err, req, res, next) => {
     error: process.env.NODE_ENV === 'development' ? err.message : {}
   });
 });
+//ตั้งค่า Session (จำเป็นสำหรับ Passport.js ที่ใช้ Session Store)
+app.use(session({
+  secret: 'your_secret_key', // ตั้งเป็นอะไรก็ได้ครับ
+  resave: false,
+  saveUninitialized: true
+}));
+
+app.use(passport.initialize());
+app.use(passport.session()); // 👈 ต้องเพิ่มบรรทัดนี้เข้ามาด้วยครับ
 
 export default app;

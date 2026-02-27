@@ -34,15 +34,10 @@ passport.use(new LineStrategy({
     channelSecret: process.env.LINE_CHANNEL_SECRET,
     callbackURL: process.env.LINE_CALLBACK_URL,
     scope: ['profile', 'openid', 'email'],
-    state: false // 👈 ขั้นตอนนี้แหละครับคือการ "สั่งปิด state"
+    state: true // 👈 เปลี่ยนจาก false เป็น true เพื่อแก้ Error ล่าสุดครับ
 },
 async (accessToken, refreshToken, profile, done) => {
-    try {
-        console.log("LINE Login Success:", profile.id);
-        return done(null, profile);
-    } catch (err) {
-        return done(err, null);
-    }
+    return done(null, profile);
 }));
 
 export default passport;
