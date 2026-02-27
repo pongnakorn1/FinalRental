@@ -6,10 +6,9 @@ import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
 import path from 'path';
 
-// ✅ 1. ต้องประกาศ router ก่อนเริ่มกำหนดเส้นทางต่างๆ
 const router = express.Router(); 
 
-// --- [ 2. ตั้งค่า Multer สำหรับ KYC ] ---
+// --- [ 1. ตั้งค่า Multer สำหรับ KYC ] ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, 'uploads/kyc/'); 
@@ -35,41 +34,49 @@ const upload = multer({
   }
 });
 
-// --- [ 3. Routes สำหรับ Authentication ทั่วไป ] ---
+// --- [ 2. Routes สำหรับ Authentication ทั่วไป ] ---
 router.post('/register', register);
 router.post('/login', login);
 
-// --- [ 4. Routes สำหรับ OTP ] ---
+// --- [ 3. Routes สำหรับ OTP ] ---
 router.post('/request-otp', requestOTP);
 router.post('/verify-otp', verifyOTP);
 
-// --- [ 5. Routes สำหรับ Social Login ] ---
+// --- [ 4. Routes สำหรับ Social Login ] ---
 
 // --- Google ---
-// ใส่ scope เพื่อแก้ปัญหา "Missing required parameter: scope"
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get('/google/callback', 
-    passport.authenticate('google', { failureRedirect: '/login', session: false }),
+    passport.authenticate('google', { 
+        failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=google_failed`, 
+        session: false 
+    }),
     socialLogin
 );
 
 // --- Facebook ---
 router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
 router.get('/facebook/callback', 
-    passport.authenticate('facebook', { failureRedirect: '/login', session: false }),
+    passport.authenticate('facebook', { 
+        failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=facebook_failed`, 
+        session: false 
+    }),
     socialLogin
 );
 
 // --- LINE ---
-// ✅ แบบที่ถูกต้อง: ไม่ต้องใส่ {} ต่อท้าย เพื่อให้มันไปดึงค่าจาก passport.js มาใช้ทั้งหมด
 router.get('/line', passport.authenticate('line')); 
 
 router.get('/line/callback', 
-    passport.authenticate('line', { failureRedirect: '/login', session: false }),
+    passport.authenticate('line', { 
+        // ✅ แก้ไขจาก /login เป็น URL ของ Frontend เพื่อไม่ให้ขึ้น Cannot GET /login
+        failureRedirect: `${process.env.CLIENT_URL || 'http://localhost:3000'}/login?error=line_failed`, 
+        session: false 
+    }),
     socialLogin
 );
 
-// --- [ 6. Route สำหรับ KYC (ต้อง Login ก่อน) ] ---
+// --- [ 5. Route สำหรับ KYC (ต้อง Login ก่อน) ] ---
 router.post(
   '/upload-kyc', 
   authenticateToken, 
