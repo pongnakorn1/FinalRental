@@ -3,12 +3,10 @@ import 'dotenv/config';
 import path from 'path'; 
 import { fileURLToPath } from 'url';
 import cors from 'cors'; 
-import passport from './config/passport.js'; // มีอยู่แล้ว เยี่ยมครับ!
+import session from 'express-session';
+import passport from './config/passport.js';
 
-// ✅ เพิ่ม 1: Import ไฟล์ตั้งค่า Google Strategy
-// ต้องชี้ path ไปที่ไฟล์ที่คุณเขียน passport.use(new GoogleStrategy(...)) ไว้
-
-
+// Import Routes
 import authRoutes from './modules/auth/auth.routes.js';
 import adminRoutes from './modules/admin/admin.routes.js';
 import shopRoutes from './modules/shop/shop.routes.js';
@@ -20,15 +18,14 @@ import moneyRoutes from './modules/money/money.routes.js';
 import autoRefundRoutes from "./modules/Interval/setInterval.route.js";
 import { processAutoRefunds } from "./modules/Interval/setInterval.controller.js";
 import reviewRoutes from "./modules/Review/review.route.js";
-import session from 'express-session'; // ต้องมี import นี้
 
 const app = express();
-
-app.use("/api/interval", autoRefundRoutes);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// 1. ตั้งค่า CORS
+// ==========================================
+// 1. ตั้งค่าพื้นฐาน (CORS & Body Parser)
+// ==========================================
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:3001', 
   credentials: true
@@ -37,24 +34,35 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ เพิ่ม 2: สั่งให้ Passport เริ่มทำงาน (สำคัญมาก!)
-// ต้องวางไว้ก่อนการเรียกใช้งาน API Routes
-app.use(passport.initialize());
-
-// 2. Static Folder สำหรับรูปภาพ
-app.use('/uploads', express.static(path.resolve(__dirname, 'uploads')));
-
-// Middleware สำหรับ Log Request
+// Middleware สำหรับ Log Request (ย้ายมาไว้ด้านบนเพื่อดูทุก Request)
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
-app.get('/', (req, res) => {
-  res.send('Server is working ✅');
-});
+// ==========================================
+// 2. 🔥 ตั้งค่า Session (ต้องอยู่ก่อน Passport และ Routes)
+// ==========================================
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'secret_key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { 
+    secure: true,        // ต้องเป็น true เมื่อรันบน Production (HTTPS)
+    sameSite: 'none',    // สำคัญมากเพื่อให้ Redirect ข้ามโดเมนได้ (LINE -> Render)
+    maxAge: 24 * 60 * 60 * 1000 // 1 วัน
+  }
+}));
 
-// API Routes
+// ==========================================
+// 3. เริ่มต้นใช้งาน Passport
+// ==========================================
+app.use(passport.initialize());
+app.use(passport.session());
+
+// ==========================================
+// 4. API Routes
+// ==========================================
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/shops', shopRoutes);
@@ -64,15 +72,25 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/money', moneyRoutes);
 app.use("/api/reviews", reviewRoutes);
+app.use("/api/interval", autoRefundRoutes);
 
+// Static Folder สำหรับรูปภาพ
+app.use('/uploads', express.static(path.resolve(__dirname, 'uploads')));
 
-// ระบบเวลา
+app.get('/', (req, res) => {
+  res.send('Server is working ✅');
+});
+
+// ==========================================
+// 5. ระบบ Cron Job / Auto Refund
+// ==========================================
 const ONE_HOUR = 60 * 60 * 1000;
 setInterval(processAutoRefunds, ONE_HOUR);
-// รันทันที 1 รอบตอนเปิดเครื่องเพื่อเคลียร์ค้างเก่า
-processAutoRefunds();
+processAutoRefunds(); // รันทันที 1 รอบตอนเปิดเครื่อง
 
-// 3. Centralized Error Handling
+// ==========================================
+// 6. Centralized Error Handling (ไว้ท้ายสุด)
+// ==========================================
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({
@@ -81,15 +99,5 @@ app.use((err, req, res, next) => {
     error: process.env.NODE_ENV === 'development' ? err.message : {}
   });
 });
-// วางไว้ก่อนบรรทัด app.use(passport.initialize())
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'secret_key',
-  resave: false,
-  saveUninitialized: false, // เปลี่ยนเป็น false เพื่อความปลอดภัย
-  cookie: { secure: true } // เพราะ Render ใช้ HTTPS
-}));
-
-app.use(passport.initialize());
-app.use(passport.session());
 
 export default app;
