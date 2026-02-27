@@ -6,10 +6,9 @@ import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
 import path from 'path';
 
-// ✅ 1. ต้องประกาศ router ก่อนเริ่มกำหนดเส้นทางต่างๆ
 const router = express.Router(); 
 
-// --- [ 2. ตั้งค่า Multer สำหรับ KYC ] ---
+// --- [ 1. ตั้งค่า Multer สำหรับ KYC ] ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, 'uploads/kyc/'); 
@@ -27,57 +26,61 @@ const upload = multer({
     const filetypes = /jpeg|jpg|png/;
     const mimetype = filetypes.test(file.mimetype);
     const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    }
+    if (mimetype && extname) return cb(null, true);
     cb(new Error("Error: File upload only supports images (jpeg, jpg, png)"));
   }
 });
 
-// --- [ 3. Routes สำหรับ Authentication ทั่วไป ] ---
+// --- [ 2. Routes ทั่วไป ] ---
 router.post('/register', register);
 router.post('/login', login);
-
-// --- [ 4. Routes สำหรับ OTP ] ---
 router.post('/request-otp', requestOTP);
 router.post('/verify-otp', verifyOTP);
 
-// --- [ 5. Routes สำหรับ Social Login ] ---
+// --- [ 3. Social Login (Google, Facebook, LINE) ] ---
 
 // --- Google ---
-// ใส่ scope เพื่อแก้ปัญหา "Missing required parameter: scope"
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+router.get('/google', passport.authenticate('google', { 
+    scope: ['profile', 'email'] 
+}));
+
 router.get('/google/callback', 
-    passport.authenticate('google', { failureRedirect: '/login', session: false }),
-    socialLogin
+    passport.authenticate('google', { 
+        failureRedirect: `${process.env.CLIENT_URL}/login?error=google_failed`,
+        session: false // ใช้ false เพราะเราจะใช้ JWT ใน socialLogin
+    }),
+    socialLogin // 🔥 ต้องมีเพื่อให้ส่ง Token กลับหน้าบ้าน
 );
 
 // --- Facebook ---
-router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+router.get('/facebook', passport.authenticate('facebook', { 
+    scope: ['email'] 
+}));
+
 router.get('/facebook/callback', 
-    passport.authenticate('facebook', { failureRedirect: '/login', session: false }),
+    passport.authenticate('facebook', { 
+        failureRedirect: `${process.env.CLIENT_URL}/login?error=facebook_failed`,
+        session: false 
+    }),
     socialLogin
 );
 
 // --- LINE ---
-// ✅ แบบที่ถูกต้อง: ไม่ต้องใส่ {} ต่อท้าย เพื่อให้มันไปดึงค่าจาก passport.js มาใช้ทั้งหมด
 router.get('/line', passport.authenticate('line')); 
 
 router.get('/line/callback', 
-    passport.authenticate('line', { failureRedirect: '/login', session: false }),
+    passport.authenticate('line', { 
+        failureRedirect: `${process.env.CLIENT_URL}/login?error=line_failed`, 
+        session: false 
+    }),
     socialLogin
 );
 
-// --- [ 6. Route สำหรับ KYC (ต้อง Login ก่อน) ] ---
-router.post(
-  '/upload-kyc', 
-  authenticateToken, 
-  upload.fields([
+// --- [ 4. Route สำหรับ KYC ] ---
+router.post('/upload-kyc', authenticateToken, upload.fields([
     { name: 'id_card_image', maxCount: 1 },
     { name: 'face_image', maxCount: 1 }
-  ]), 
-  uploadKYC
+  ]), uploadKYC
 );
 
 export default router;

@@ -20,6 +20,7 @@ import { processAutoRefunds } from "./modules/Interval/setInterval.controller.js
 import reviewRoutes from "./modules/Review/review.route.js";
 
 const app = express();
+app.set('trust proxy', 1); // ✅ เพิ่มบรรทัดนี้เพื่อให้ Session ทำงานบน Render ได้
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
