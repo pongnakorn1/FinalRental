@@ -171,14 +171,12 @@ export const socialLogin = async (req, res) => {
             email = _json.email;
         }
 
-        // 🛑 ถ้ายังไม่มีเมล ให้พ่น Debug Profile ออกมาดูเลย
-        if (!email) {
-            return res.status(400).json({ 
-                success: false, 
-                message: `ไม่สามารถดึงอีเมลจาก ${provider} ได้ กรุณา Unlink แอปใน LINE แล้วลองใหม่`,
-                debug_info: { provider, user_id: id, raw_profile: req.user }
-            });
-        }
+        // ✅ แบบใหม่: ถ้าไม่มีเมล ให้สร้างอีเมลจำลองจาก ID ไว้ก่อน ข้อมูลจะได้ลง Supabase ได้
+if (!email) {
+    // สร้างเมลปลอมเพื่อให้ผ่านด่าน Check ใน Database (เช่น Uc0bb...286f586@line.com)
+    email = `${id}@${provider}.com`; 
+    console.log("No email found, created fallback email:", email);
+}
 
         let idColumn;
         if (provider === 'google') idColumn = 'google_id';
