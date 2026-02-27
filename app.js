@@ -81,14 +81,15 @@ app.use((err, req, res, next) => {
     error: process.env.NODE_ENV === 'development' ? err.message : {}
   });
 });
-//ตั้งค่า Session (จำเป็นสำหรับ Passport.js ที่ใช้ Session Store)
+// วางไว้ก่อนบรรทัด app.use(passport.initialize())
 app.use(session({
-  secret: 'your_secret_key', // ตั้งเป็นอะไรก็ได้ครับ
+  secret: process.env.SESSION_SECRET || 'secret_key',
   resave: false,
-  saveUninitialized: true
+  saveUninitialized: false, // เปลี่ยนเป็น false เพื่อความปลอดภัย
+  cookie: { secure: true } // เพราะ Render ใช้ HTTPS
 }));
 
 app.use(passport.initialize());
-app.use(passport.session()); // 👈 ต้องเพิ่มบรรทัดนี้เข้ามาด้วยครับ
+app.use(passport.session());
 
 export default app;
