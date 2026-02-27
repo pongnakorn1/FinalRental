@@ -46,10 +46,10 @@ router.get('/google', passport.authenticate('google', {
 
 router.get('/google/callback', 
     passport.authenticate('google', { 
-        failureRedirect: `${process.env.CLIENT_URL}/login?error=google_failed`,
-        session: false // ใช้ false เพราะเราจะใช้ JWT ใน socialLogin
+        // ❌ เอา failureRedirect ออกชั่วคราวเพื่อให้เห็น Error จริงๆ บนจอ
+        session: false 
     }),
-    socialLogin // 🔥 ต้องมีเพื่อให้ส่ง Token กลับหน้าบ้าน
+    socialLogin 
 );
 
 // --- Facebook ---
@@ -59,7 +59,6 @@ router.get('/facebook', passport.authenticate('facebook', {
 
 router.get('/facebook/callback', 
     passport.authenticate('facebook', { 
-        failureRedirect: `${process.env.CLIENT_URL}/login?error=facebook_failed`,
         session: false 
     }),
     socialLogin
@@ -70,7 +69,6 @@ router.get('/line', passport.authenticate('line'));
 
 router.get('/line/callback', 
     passport.authenticate('line', { 
-        failureRedirect: `${process.env.CLIENT_URL}/login?error=line_failed`, 
         session: false 
     }),
     socialLogin
