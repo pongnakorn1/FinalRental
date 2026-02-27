@@ -46,7 +46,7 @@ router.get('/google', passport.authenticate('google', {
 
 router.get('/google/callback', 
     passport.authenticate('google', { 
-        // ❌ เอา failureRedirect ออกชั่วคราวเพื่อให้เห็น Error จริงๆ บนจอ
+        failureRedirect: `${process.env.CLIENT_URL || ''}/login?error=google_failed`,
         session: false 
     }),
     socialLogin 
@@ -59,16 +59,21 @@ router.get('/facebook', passport.authenticate('facebook', {
 
 router.get('/facebook/callback', 
     passport.authenticate('facebook', { 
+        failureRedirect: `${process.env.CLIENT_URL || ''}/login?error=facebook_failed`,
         session: false 
     }),
     socialLogin
 );
 
 // --- LINE ---
-router.get('/line', passport.authenticate('line')); 
+// ✅ แก้ไข: เพิ่ม scope เพื่อขอสิทธิ์เข้าถึง Email และ OpenID
+router.get('/line', passport.authenticate('line', {
+    scope: ['profile', 'openid', 'email'] 
+})); 
 
 router.get('/line/callback', 
     passport.authenticate('line', { 
+        failureRedirect: `${process.env.CLIENT_URL || ''}/login?error=line_failed`, 
         session: false 
     }),
     socialLogin
