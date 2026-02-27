@@ -1,7 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
-import { Strategy as LineStrategy } from 'passport-line'; // 👈 เปลี่ยนจาก passport-line-auth เป็น passport-line
+import { Strategy as LineStrategy } from 'passport-line-v2';
 import 'dotenv/config';
 
 console.log("Current Callback URL:", process.env.GOOGLE_CALLBACK_URL);
@@ -33,11 +33,14 @@ passport.use(new LineStrategy({
     channelID: process.env.LINE_CHANNEL_ID,
     channelSecret: process.env.LINE_CHANNEL_SECRET,
     callbackURL: process.env.LINE_CALLBACK_URL,
-    // ✅ เพิ่มบรรทัดนี้ลงไปเพื่อให้ LINE ส่งอีเมลกลับมาให้เรา
-    scope: ['profile', 'openid', 'email'] 
+    // ✅ ใส่ scope ครบถ้วนเพื่อขอสิทธิ์ OpenID และ Email
+    scope: ['profile', 'openid', 'email'],
+    // บางครั้ง LINE ต้องการ botPrompt หรืออื่นๆ แต่เบื้องต้นแค่นี้เพียงพอครับ
   },
-async (accessToken, refreshToken, profile, done) => {
+  async (accessToken, refreshToken, profile, done) => {
+    // ใน profile ของ v2 จะมีฟิลด์ email มาให้เลยถ้าตั้งค่าถูกต้อง
     return done(null, profile);
-}));
+  }
+));
 
 export default passport;
