@@ -157,40 +157,38 @@ export const login = async (req, res) => {
 export const socialLogin = async (req, res) => {
     try {
         console.log("--- Social Login Debug ---");
-        console.log("Provider:", req.user?.provider);
-        console.log("Raw User Data:", req.user); 
-
         if (!req.user) {
             return res.status(401).json({ success: false, message: "Authentication failed" });
         }
 
         const { displayName, emails, id, provider, _json } = req.user;
         
-        // 📧 ดึง Email แบบรองรับทุก Provider (เน้น LINE เป็นพิเศษ)
+        // 📧 ระบบดึงอีเมลที่อัปเกรดแล้ว
         let email = null;
-        if (emails && emails.length > 0) email = emails[0].value;
-        else if (_json && _json.email) email = _json.email;
+        if (emails && emails.length > 0) {
+            email = emails[0].value;
+        } else if (_json && _json.email) {
+            email = _json.email;
+        }
 
+        // 🛑 ถ้ายังไม่มีเมล ให้พ่น Debug Profile ออกมาดูเลย
         if (!email) {
-            console.error("Error: No email found for provider", provider);
             return res.status(400).json({ 
                 success: false, 
-                message: `ไม่สามารถดึงอีเมลจาก ${provider} ได้ กรุณาตรวจสอบการตั้งค่าความปลอดภัยของท่าน` 
+                message: `ไม่สามารถดึงอีเมลจาก ${provider} ได้ กรุณา Unlink แอปใน LINE แล้วลองใหม่`,
+                debug_info: { provider, user_id: id, raw_profile: req.user }
             });
         }
 
-        // 🆔 กำหนด Column ในฐานข้อมูลตาม Provider
         let idColumn;
         if (provider === 'google') idColumn = 'google_id';
         else if (provider === 'facebook') idColumn = 'facebook_id';
         else if (provider === 'line') idColumn = 'line_id';
 
-        // 🔍 ตรวจสอบ User ใน DB
         let result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
         let user;
 
         if (result.rows.length === 0) {
-            // ✨ สร้าง User ใหม่ถ้ายังไม่มี
             const newUser = await pool.query(
                 `INSERT INTO users (full_name, email, ${idColumn}, role, kyc_status) 
                  VALUES ($1, $2, $3, 'user', 'not_submitted') RETURNING *`,
@@ -199,27 +197,26 @@ export const socialLogin = async (req, res) => {
             user = newUser.rows[0];
             await pool.query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0)", [user.id]);
         } else {
-            // 🔄 อัปเดต Social ID ของเจ้านั้นๆ ถ้ายังไม่มีใน Record เดิม
             user = result.rows[0];
             if (!user[idColumn]) {
                 await pool.query(`UPDATE users SET ${idColumn} = $1 WHERE id = $2`, [id, user.id]);
             }
         }
 
-        // 🎫 สร้าง JWT Token
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role, kyc_status: user.kyc_status },
             process.env.JWT_SECRET,
             { expiresIn: "1d" }
         );
 
-        // 🏁 การตอบกลับ: ถ้ามีหน้าบ้านให้ Redirect ไปหน้าบ้านพร้อม Token
+        // 🏁 ปิด REDIRECT เพื่อแสดง JSON + TOKEN บนหน้าจอ (กันหน้าขาว Cannot GET)
+        /*
         const clientUrl = process.env.CLIENT_URL;
         if (clientUrl && clientUrl.includes("http")) {
              return res.redirect(`${clientUrl}/login-success?token=${token}`);
         }
+        */
 
-        // 📋 ถ้าเทสบน Render โดยตรง (ไม่มีหน้าบ้านรันอยู่) ให้แสดง JSON
         res.json({
             success: true,
             message: "Social Login Success!",
@@ -235,7 +232,7 @@ export const socialLogin = async (req, res) => {
         
     } catch (err) {
         console.error("SOCIAL LOGIN ERROR:", err);
-        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการเชื่อมต่อระบบ Social Login" });
+        res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 };
 
@@ -255,16 +252,10 @@ export const uploadKYC = async (req, res) => {
         const idCardPath = files.id_card_image[0].path;
         const faceImagePath = files.face_image[0].path;
 
-        const ocr = await extractIDNumber(idCardPath);
-        if (ocr.expired) return res.status(400).json({ message: "บัตรประชาชนหมดอายุแล้ว" });
-
-        const finalID = ocr.id || id_card_number;
-        if (!finalID) return res.status(400).json({ message: "ไม่สามารถอ่านเลขบัตรได้ กรุณากรอกด้วยตนเอง" });
-
         const result = await pool.query(
             `UPDATE users SET id_card_number = $1, id_card_image = $2, face_image = $3, kyc_status = 'pending' 
              WHERE id = $4 RETURNING id, kyc_status`,
-            [finalID, idCardPath, faceImagePath, userId]
+            [id_card_number, idCardPath, faceImagePath, userId]
         );
 
         res.json({ message: "ส่งข้อมูล KYC เรียบร้อย", data: result.rows[0] });
