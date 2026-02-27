@@ -5,32 +5,38 @@ import admin from 'firebase-admin';
 import pool from "../../config/db.js";
 
 // =============================
-// 🔥 Firebase Admin (ใช้ ENV)
+// 🔥 Firebase Admin
 // =============================
 if (!admin.apps.length) {
-    const serviceAccount = JSON.parse(
-        process.env.FIREBASE_SERVICE_ACCOUNT
-    );
-
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount),
-    });
+    try {
+        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+        admin.initializeApp({
+            credential: admin.credential.cert(serviceAccount),
+        });
+    } catch (error) {
+        console.error("Firebase Init Error:", error.message);
+    }
 }
 
 // =============================
-// 🔥 Google Vision (ใช้ ENV)
+// 🔥 Google Vision
 // =============================
-const visionClient = new vision.ImageAnnotatorClient({
-    credentials: JSON.parse(process.env.GOOGLE_VISION_KEY),
-});
+let visionClient;
+try {
+    visionClient = new vision.ImageAnnotatorClient({
+        credentials: JSON.parse(process.env.GOOGLE_VISION_KEY),
+    });
+} catch (error) {
+    console.error("Vision Client Error:", error.message);
+}
 
 // =============================
 // 📌 OCR Function
 // =============================
 const extractIDNumber = async (imagePath) => {
     try {
+        if (!visionClient) return { id: null, expired: false };
         const [result] = await visionClient.textDetection(imagePath);
-
         if (!result.textAnnotations || result.textAnnotations.length === 0) {
             return { id: null, expired: false };
         }
@@ -42,21 +48,20 @@ const extractIDNumber = async (imagePath) => {
 
         const years = fullText.match(/20\d{2}/g);
         let isExpired = false;
-
         if (years) {
             const currentYear = new Date().getFullYear();
             const expiryYear = Math.max(...years.map(Number));
             if (expiryYear < currentYear) isExpired = true;
         }
-
         return { id: scannedID, expired: isExpired };
     } catch (err) {
         console.error("OCR ERROR:", err.message);
         return { id: null, expired: false };
     }
 };
+
 // =============================
-// 📌 REGISTER (รองรับทั้งแบบปกติ และ Firebase OTP)
+// 📌 REGISTER
 // =============================
 export const register = async (req, res) => {
     const dbClient = await pool.connect();
@@ -64,7 +69,6 @@ export const register = async (req, res) => {
         const { full_name, email, phone, address, password, idToken } = req.body;
         let finalPhone = phone;
 
-        // กรณีใช้ Firebase OTP
         if (idToken) {
             try {
                 const decodedToken = await admin.auth().verifyIdToken(idToken);
@@ -79,8 +83,6 @@ export const register = async (req, res) => {
         }
 
         await dbClient.query("BEGIN");
-
-        // ตรวจสอบข้อมูลซ้ำ
         const checkUser = await dbClient.query(
             "SELECT id FROM users WHERE email = $1 OR phone = $2", 
             [email, finalPhone]
@@ -98,9 +100,7 @@ export const register = async (req, res) => {
             [full_name, email, finalPhone, address, hashedPassword]
         );
 
-        // สร้าง Wallet ทันที
         await dbClient.query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0)", [userResult.rows[0].id]);
-
         await dbClient.query("COMMIT");
         res.status(201).json({ message: "ลงทะเบียนสำเร็จ", user: userResult.rows[0] });
 
@@ -114,25 +114,20 @@ export const register = async (req, res) => {
 };
 
 // =============================
-// 📌 LOGIN (พร้อมระบบเช็ค Suspend)
+// 📌 LOGIN
 // =============================
 export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
-
         const result = await pool.query(
             `SELECT id, full_name, email, password, role, kyc_status, is_suspended, suspension_reason
              FROM users WHERE LOWER(email) = LOWER($1)`,
             [email]
         );
 
-        if (result.rowCount === 0) {
-            return res.status(400).json({ message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
-        }
+        if (result.rowCount === 0) return res.status(400).json({ message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
 
         const user = result.rows[0];
-
-        // 1. ตรวจสอบการโดนแบน
         if (user.is_suspended) {
             return res.status(403).json({
                 message: "บัญชีของคุณถูกระงับการใช้งาน",
@@ -140,23 +135,16 @@ export const login = async (req, res) => {
             });
         }
 
-        // 2. เช็ครหัสผ่าน
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
 
-        // 3. สร้าง JWT
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role, kyc_status: user.kyc_status },
             process.env.JWT_SECRET,
             { expiresIn: "1d" }
         );
 
-        res.json({
-            message: "เข้าสู่ระบบสำเร็จ",
-            token,
-            user: { id: user.id, full_name: user.full_name, role: user.role, kyc_status: user.kyc_status }
-        });
-
+        res.json({ message: "เข้าสู่ระบบสำเร็จ", token, user: { id: user.id, full_name: user.full_name, role: user.role, kyc_status: user.kyc_status } });
     } catch (err) {
         console.error("LOGIN ERROR:", err);
         res.status(500).json({ message: "การเข้าสู่ระบบล้มเหลว" });
@@ -164,64 +152,71 @@ export const login = async (req, res) => {
 };
 
 // =============================
-// 📌 SOCIAL LOGIN (Google, Facebook, LINE)
+// 📌 SOCIAL LOGIN (Google, Facebook, LINE) - UPDATED!
 // =============================
 export const socialLogin = async (req, res) => {
     try {
-        // ดึงค่าจาก passport (ดักจับโครงสร้างที่ต่างกันเล็กน้อยของแต่ละเจ้า)
-        const { displayName, emails, id, provider } = req.user; 
+        console.log("Raw Passport User:", req.user); // ช่วย Debug ใน Render Logs
+
+        if (!req.user) {
+            return res.redirect(`${process.env.CLIENT_URL}/login?error=auth_failed`);
+        }
+
+        const { displayName, emails, id, provider, _json } = req.user;
         
-        // Facebook บางคนอาจไม่ให้ Email หรือไม่มี Email ใน Profile
-        const email = (emails && emails.length > 0) ? emails[0].value : null;
+        // ดึง Email แบบครอบคลุมทุก Provider
+        let email = null;
+        if (emails && emails.length > 0) email = emails[0].value;
+        else if (_json && _json.email) email = _json.email; // สำหรับ LINE/Facebook บางเคส
 
         if (!email) {
+            console.error("Social Login Error: No email found in profile");
             return res.redirect(`${process.env.CLIENT_URL}/login?error=no_email`);
         }
 
-        // 🔍 1. ค้นหาผู้ใช้จาก Email
+        // ตรวจสอบคอลัมน์ที่จะบันทึกตาม Provider
+        let idColumn;
+        if (provider === 'google') idColumn = 'google_id';
+        else if (provider === 'facebook') idColumn = 'facebook_id';
+        else if (provider === 'line') idColumn = 'line_id';
+        else throw new Error("Unsupported provider");
+
         let result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
         let user;
 
-        // กำหนดชื่อคอลัมน์ตาม Provider (google_id, facebook_id, line_id)
-        const idColumn = `${provider}_id`; 
-
         if (result.rows.length === 0) {
-            // ✨ 2. ถ้ายังไม่มี User ให้ INSERT ใหม่ (ใช้ [] ครอบชื่อตัวแปรเพื่อให้เป็น Dynamic Column)
+            // สร้าง User ใหม่
             const newUser = await pool.query(
                 `INSERT INTO users (full_name, email, ${idColumn}, role, kyc_status) 
                  VALUES ($1, $2, $3, 'user', 'not_submitted') RETURNING *`,
-                [displayName, email, id]
+                [displayName || 'Social User', email, id]
             );
             user = newUser.rows[0];
-            
-            // สร้าง Wallet ให้สมาชิกใหม่
             await pool.query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0)", [user.id]);
         } else {
-            // 🔄 3. ถ้ามี User แล้ว ให้ตรวจสอบว่ามี ID ของเจ้านี้หรือยัง
+            // อัปเดต ID ของ Social เจ้าปัจจุบันถ้ายังไม่มี
             user = result.rows[0];
             if (!user[idColumn]) {
                 await pool.query(`UPDATE users SET ${idColumn} = $1 WHERE id = $2`, [id, user.id]);
             }
         }
 
-        // 🎫 4. สร้าง JWT Token
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role, kyc_status: user.kyc_status },
             process.env.JWT_SECRET,
             { expiresIn: "1d" }
         );
 
-        // 🚀 5. Redirect กลับไปหน้าบ้าน
         res.redirect(`${process.env.CLIENT_URL}/login-success?token=${token}`);
         
     } catch (err) {
         console.error("SOCIAL LOGIN ERROR:", err);
-        res.status(500).json({ message: "Social Login ล้มเหลว" });
+        res.redirect(`${process.env.CLIENT_URL}/login?error=server_error`);
     }
 };
 
 // =============================
-// 📌 UPLOAD KYC (OCR + Database)
+// 📌 UPLOAD KYC
 // =============================
 export const uploadKYC = async (req, res) => {
     try {
@@ -236,23 +231,19 @@ export const uploadKYC = async (req, res) => {
         const idCardPath = files.id_card_image[0].path;
         const faceImagePath = files.face_image[0].path;
 
-        // ทำ OCR
         const ocr = await extractIDNumber(idCardPath);
         if (ocr.expired) return res.status(400).json({ message: "บัตรประชาชนหมดอายุแล้ว" });
 
         const finalID = ocr.id || id_card_number;
         if (!finalID) return res.status(400).json({ message: "ไม่สามารถอ่านเลขบัตรได้ กรุณากรอกด้วยตนเอง" });
 
-        // อัปเดตข้อมูล
         const result = await pool.query(
-            `UPDATE users 
-             SET id_card_number = $1, id_card_image = $2, face_image = $3, kyc_status = 'pending' 
+            `UPDATE users SET id_card_number = $1, id_card_image = $2, face_image = $3, kyc_status = 'pending' 
              WHERE id = $4 RETURNING id, kyc_status`,
             [finalID, idCardPath, faceImagePath, userId]
         );
 
         res.json({ message: "ส่งข้อมูล KYC เรียบร้อย", data: result.rows[0] });
-
     } catch (err) {
         console.error("KYC ERROR:", err);
         res.status(500).json({ message: "เกิดข้อผิดพลาดในการอัปโหลด KYC" });
