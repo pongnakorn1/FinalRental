@@ -22,7 +22,7 @@ passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
     callbackURL: process.env.FACEBOOK_CALLBACK_URL,
-    profileFields: ['id', 'displayName'] // ขอข้อมูลที่จำเป็น
+    profileFields: ['id', 'displayName', 'emails'] // ขอข้อมูลที่จำเป็น
   },
   async (accessToken, refreshToken, profile, done) => {
     return done(null, profile);
@@ -34,7 +34,7 @@ passport.use(new LineStrategy({
     channelSecret: process.env.LINE_CHANNEL_SECRET,
     callbackURL: process.env.LINE_CALLBACK_URL,
     // ✅ ใส่ scope ครบถ้วนเพื่อขอสิทธิ์ OpenID และ Email
-    scope: ['profile', 'openid', 'email'],
+    scope: ['profile', 'openid'],
     // บางครั้ง LINE ต้องการ botPrompt หรืออื่นๆ แต่เบื้องต้นแค่นี้เพียงพอครับ
   },
   async (accessToken, refreshToken, profile, done) => {
