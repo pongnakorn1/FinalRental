@@ -33,9 +33,9 @@ passport.use(new LineStrategy({
     channelID: process.env.LINE_CHANNEL_ID,
     channelSecret: process.env.LINE_CHANNEL_SECRET,
     callbackURL: process.env.LINE_CALLBACK_URL,
-    scope: ['profile', 'openid', 'email'],
-    state: true // 👈 เปลี่ยนจาก false เป็น true เพื่อแก้ Error ล่าสุดครับ
-},
+    // ✅ เพิ่มบรรทัดนี้ลงไปเพื่อให้ LINE ส่งอีเมลกลับมาให้เรา
+    scope: ['profile', 'openid', 'email'] 
+  },
 async (accessToken, refreshToken, profile, done) => {
     return done(null, profile);
 }));

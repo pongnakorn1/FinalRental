@@ -157,35 +157,40 @@ export const login = async (req, res) => {
 export const socialLogin = async (req, res) => {
     try {
         console.log("--- Social Login Debug ---");
-        console.log("Raw Passport User:", req.user); 
+        console.log("Provider:", req.user?.provider);
+        console.log("Raw User Data:", req.user); 
 
         if (!req.user) {
-            return res.status(401).json({ success: false, message: "Authentication failed: No user found" });
+            return res.status(401).json({ success: false, message: "Authentication failed" });
         }
 
         const { displayName, emails, id, provider, _json } = req.user;
         
-        // ดึง Email
+        // 📧 ดึง Email แบบรองรับทุก Provider (เน้น LINE เป็นพิเศษ)
         let email = null;
         if (emails && emails.length > 0) email = emails[0].value;
         else if (_json && _json.email) email = _json.email;
 
         if (!email) {
-            return res.status(400).json({ success: false, message: "No email found in social profile" });
+            console.error("Error: No email found for provider", provider);
+            return res.status(400).json({ 
+                success: false, 
+                message: `ไม่สามารถดึงอีเมลจาก ${provider} ได้ กรุณาตรวจสอบการตั้งค่าความปลอดภัยของท่าน` 
+            });
         }
 
-        // กำหนด Column
+        // 🆔 กำหนด Column ในฐานข้อมูลตาม Provider
         let idColumn;
         if (provider === 'google') idColumn = 'google_id';
         else if (provider === 'facebook') idColumn = 'facebook_id';
         else if (provider === 'line') idColumn = 'line_id';
 
-        // ตรวจสอบ User ใน DB
+        // 🔍 ตรวจสอบ User ใน DB
         let result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
         let user;
 
         if (result.rows.length === 0) {
-            // สร้างใหม่
+            // ✨ สร้าง User ใหม่ถ้ายังไม่มี
             const newUser = await pool.query(
                 `INSERT INTO users (full_name, email, ${idColumn}, role, kyc_status) 
                  VALUES ($1, $2, $3, 'user', 'not_submitted') RETURNING *`,
@@ -194,21 +199,27 @@ export const socialLogin = async (req, res) => {
             user = newUser.rows[0];
             await pool.query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0)", [user.id]);
         } else {
-            // อัปเดต ID
+            // 🔄 อัปเดต Social ID ของเจ้านั้นๆ ถ้ายังไม่มีใน Record เดิม
             user = result.rows[0];
             if (!user[idColumn]) {
                 await pool.query(`UPDATE users SET ${idColumn} = $1 WHERE id = $2`, [id, user.id]);
             }
         }
 
-        // สร้าง JWT
+        // 🎫 สร้าง JWT Token
         const token = jwt.sign(
             { id: user.id, email: user.email, role: user.role, kyc_status: user.kyc_status },
             process.env.JWT_SECRET,
             { expiresIn: "1d" }
         );
 
-        // ✅ แก้จาก res.redirect เป็น res.json ชั่วคราวเพื่อให้คุณเห็นข้อมูลบนหน้าจอ
+        // 🏁 การตอบกลับ: ถ้ามีหน้าบ้านให้ Redirect ไปหน้าบ้านพร้อม Token
+        const clientUrl = process.env.CLIENT_URL;
+        if (clientUrl && clientUrl.includes("http")) {
+             return res.redirect(`${clientUrl}/login-success?token=${token}`);
+        }
+
+        // 📋 ถ้าเทสบน Render โดยตรง (ไม่มีหน้าบ้านรันอยู่) ให้แสดง JSON
         res.json({
             success: true,
             message: "Social Login Success!",
@@ -224,7 +235,7 @@ export const socialLogin = async (req, res) => {
         
     } catch (err) {
         console.error("SOCIAL LOGIN ERROR:", err);
-        res.status(500).json({ success: false, message: "Internal Server Error during social login" });
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการเชื่อมต่อระบบ Social Login" });
     }
 };
 
