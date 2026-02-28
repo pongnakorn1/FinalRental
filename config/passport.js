@@ -1,7 +1,7 @@
 import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
-import { Strategy as LineStrategy } from 'passport-line-v2';
+import { Strategy as LineStrategy } from 'passport-line-auth';
 import 'dotenv/config';
 
 console.log("Current Callback URL:", process.env.GOOGLE_CALLBACK_URL);
@@ -30,16 +30,14 @@ passport.use(new FacebookStrategy({
 ));
 
 passport.use(new LineStrategy({
-    channelID: process.env.LINE_CHANNEL_ID,
-    channelSecret: process.env.LINE_CHANNEL_SECRET,
-    callbackURL: process.env.LINE_CALLBACK_URL,
-    // ✅ ใส่ scope ครบถ้วนเพื่อขอสิทธิ์ OpenID และ Email
-    scope: ['profile', 'openid'],
-    // บางครั้ง LINE ต้องการ botPrompt หรืออื่นๆ แต่เบื้องต้นแค่นี้เพียงพอครับ
+    channelID: process.env.LINE_LOGIN_CHANNEL_ID,      // ✅ ต้องตรงกับ ID ของ Channel ใหม่
+    channelSecret: process.env.LINE_LOGIN_CHANNEL_SECRET,  // ✅ ต้องตรงกับ Secret ของ Channel ใหม่
+    callbackURL: "https://finalrental.onrender.com/api/auth/line/callback", // ✅ ต้องตรงกับที่กรอกใน LINE Dev
+    scope: ['profile', 'openid', 'email'], 
   },
-  async (accessToken, refreshToken, profile, done) => {
-    // ใน profile ของ v2 จะมีฟิลด์ email มาให้เลยถ้าตั้งค่าถูกต้อง
-    return done(null, profile);
+  function(accessToken, refreshToken, params, profile, cb) {
+    // ข้อมูลที่ได้จาก LINE (profile) จะถูกส่งต่อไปยัง socialLogin ใน auth.controller.js
+    return cb(null, profile); 
   }
 ));
 
