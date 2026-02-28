@@ -152,7 +152,7 @@ export const login = async (req, res) => {
 };
 
 // =============================
-// 📌 SOCIAL LOGIN (Google, Facebook, LINE)
+// 📌 SOCIAL LOGIN (Google, Facebook, LINE) - Updated Version
 // =============================
 export const socialLogin = async (req, res) => {
     try {
@@ -162,37 +162,42 @@ export const socialLogin = async (req, res) => {
 
         const { displayName, emails, id, provider } = req.user;
         
-        // 1. ดึง Email
-        let email = (emails && emails.length > 0) ? emails[0].value : `${id}@${provider}.com`;
+        // 1. ดึง Email (ถ้ามีจริงใช้จริง ถ้าไม่มีใช้ ID@provider.com)
+        let currentEmail = (emails && emails.length > 0) ? emails[0].value : `${id}@${provider}.com`;
 
         // 2. กำหนดชื่อคอลัมน์ตาม Provider
         let idColumn;
         if (provider === 'google') idColumn = 'google_id';
         else if (provider === 'facebook') idColumn = 'facebook_id';
-        else if (provider === 'line') idColumn = 'line_id'; // ✅ รองรับ LINE ID
+        else if (provider === 'line') idColumn = 'line_id';
 
-        // 3. ตรวจสอบว่ามีผู้ใช้นี้ในระบบหรือยัง (เช็คจาก Email)
-        let result = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+        // 3. ตรวจสอบจาก Social ID (แม่นยำที่สุด)
+        let result = await pool.query(`SELECT * FROM users WHERE ${idColumn} = $1`, [id]);
         let user;
 
         if (result.rows.length === 0) {
-            // ✨ กรณีผู้ใช้ใหม่: สร้างบัญชีพร้อมบันทึก LINE ID ทันที
+            // ✨ กรณีผู้ใช้ใหม่: สร้างบัญชีใหม่
             const newUser = await pool.query(
                 `INSERT INTO users (full_name, email, ${idColumn}, role, kyc_status) 
                  VALUES ($1, $2, $3, 'user', 'not_submitted') RETURNING *`,
-                [displayName || 'Social User', email, id]
+                [displayName || 'Social User', currentEmail, id]
             );
             user = newUser.rows[0];
+            
+            // สร้าง Wallet ให้ผู้ใช้ใหม่
             await pool.query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0)", [user.id]);
         } else {
-            // ✨ กรณีผู้ใช้เก่า: อัปเดต LINE ID เข้าไปในแถวเดิม (แก้ปัญหา NULL)
+            // ✨ กรณีผู้ใช้เก่า: ตรวจสอบว่าต้องอัปเดตอีเมลจาก "จำลอง" เป็น "จริง" หรือไม่
             user = result.rows[0];
-            if (!user[idColumn]) {
+            
+            // ถ้าใน DB เป็นเมลจำลอง (@line.com) แต่ตอนนี้ได้เมลจริงมาแล้ว ให้ UPDATE ทันที
+            if (user.email.includes(`@${provider}.com`) && !currentEmail.includes(`@${provider}.com`)) {
                 const updatedUser = await pool.query(
-                    `UPDATE users SET ${idColumn} = $1 WHERE id = $2 RETURNING *`, 
-                    [id, user.id]
+                    `UPDATE users SET email = $1 WHERE id = $2 RETURNING *`,
+                    [currentEmail, user.id]
                 );
                 user = updatedUser.rows[0];
+                console.log(`✅ Updated fake email to real email for user ID: ${user.id}`);
             }
         }
 
@@ -203,7 +208,7 @@ export const socialLogin = async (req, res) => {
             { expiresIn: "1d" }
         );
 
-        // 5. ส่ง Response กลับ (แสดง Token ให้เห็นเพื่อเอาไปเทส)
+        // 5. ส่ง Response
         res.json({
             success: true,
             message: `Login with ${provider} success!`,
@@ -212,7 +217,7 @@ export const socialLogin = async (req, res) => {
                 id: user.id,
                 full_name: user.full_name,
                 email: user.email,
-                line_id: user.line_id // เพิ่มเพื่อให้เช็คได้ว่าบันทึกสำเร็จไหม
+                line_id: user.line_id 
             }
         });
         
