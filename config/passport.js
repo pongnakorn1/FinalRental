@@ -30,15 +30,20 @@ passport.use(new FacebookStrategy({
 ));
 
 passport.use(new LineStrategy({
-    channelID: process.env.LINE_LOGIN_CHANNEL_ID,      // ✅ ต้องตรงกับ ID ของ Channel ใหม่
-    channelSecret: process.env.LINE_LOGIN_CHANNEL_SECRET,  // ✅ ต้องตรงกับ Secret ของ Channel ใหม่
-    callbackURL: "https://finalrental.onrender.com/api/auth/line/callback", // ✅ ต้องตรงกับที่กรอกใน LINE Dev
-    scope: ['profile', 'openid', 'email'], 
-    profileFields: ['id', 'displayName', 'emails', 'pictureUrl'] 
+    channelID: process.env.LINE_LOGIN_CHANNEL_ID,
+    channelSecret: process.env.LINE_LOGIN_CHANNEL_SECRET,
+    callbackURL: "https://finalrental.onrender.com/api/auth/line/callback",
+    scope: ['profile', 'openid', 'email'],
+    profileFields: ['id', 'displayName', 'emails', 'pictureUrl']
   },
   function(accessToken, refreshToken, params, profile, cb) {
-    // ข้อมูลที่ได้จาก LINE (profile) จะถูกส่งต่อไปยัง socialLogin ใน auth.controller.js
-    return cb(null, profile); 
+    // 🔥 บรรทัดนี้แหละที่จะเฉลยทุกอย่าง
+    console.log("======= [DEBUG LINE LOGIN] =======");
+    console.log("1. PARAMS (id_token):", JSON.stringify(params, null, 2));
+    console.log("2. PROFILE:", JSON.stringify(profile, null, 2));
+    console.log("==================================");
+
+    return cb(null, profile);
   }
 ));
 
