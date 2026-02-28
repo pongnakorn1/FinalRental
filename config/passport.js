@@ -34,6 +34,7 @@ passport.use(new LineStrategy({
     channelSecret: process.env.LINE_LOGIN_CHANNEL_SECRET,  // ✅ ต้องตรงกับ Secret ของ Channel ใหม่
     callbackURL: "https://finalrental.onrender.com/api/auth/line/callback", // ✅ ต้องตรงกับที่กรอกใน LINE Dev
     scope: ['profile', 'openid', 'email'], 
+    profileFields: ['id', 'displayName', 'emails', 'pictureUrl'] 
   },
   function(accessToken, refreshToken, params, profile, cb) {
     // ข้อมูลที่ได้จาก LINE (profile) จะถูกส่งต่อไปยัง socialLogin ใน auth.controller.js
