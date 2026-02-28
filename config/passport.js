@@ -2,6 +2,7 @@ import passport from 'passport';
 import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 import { Strategy as FacebookStrategy } from 'passport-facebook';
 import { Strategy as LineStrategy } from 'passport-line-auth';
+import { jwtDecode } from "jwt-decode";
 import 'dotenv/config';
 
 console.log("Current Callback URL:", process.env.GOOGLE_CALLBACK_URL);
@@ -37,13 +38,19 @@ passport.use(new LineStrategy({
     profileFields: ['id', 'displayName', 'emails', 'pictureUrl']
   },
   function(accessToken, refreshToken, params, profile, cb) {
-    // 🔥 บรรทัดนี้แหละที่จะเฉลยทุกอย่าง
-    console.log("======= [DEBUG LINE LOGIN] =======");
-    console.log("1. PARAMS (id_token):", JSON.stringify(params, null, 2));
-    console.log("2. PROFILE:", JSON.stringify(profile, null, 2));
-    console.log("==================================");
-
-    return cb(null, profile);
+    try {
+        // ✨ แกะอีเมลจาก id_token ที่อยู่ใน params
+        if (params.id_token) {
+            const decoded = jwtDecode(params.id_token);
+            profile.email = decoded.email; // 👈 เอาอีเมลจริงไปแปะไว้ใน profile
+        }
+        
+        console.log("✅ Decoded Email:", profile.email); // เช็คใน Log อีกที
+        return cb(null, profile);
+    } catch (error) {
+        console.error("JWT Decode Error:", error);
+        return cb(error, null);
+    }
   }
 ));
 
