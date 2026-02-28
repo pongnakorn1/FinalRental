@@ -134,37 +134,31 @@ export const getProductsByShop = async (req, res) => {
 };
 
 // =============================
-// 📌 GET ALL PRODUCTS BY USER ID (ดึงสินค้าทั้งหมดของผู้ใช้ที่ Login อยู่)
+// 📌 GET PRODUCTS BY ANY USER ID (ดึงสินค้าของใครก็ได้ผ่าน ID)
 // =============================
-export const getMyProducts = async (req, res) => {
+export const getProductsByUserId = async (req, res) => {
     try {
-        // ดึง userId จาก Middleware ตรวจสอบ Token (req.user.id)
-        const userId = req.user.id; 
+        const targetUserId = req.params.id; // ดึง ID จาก URL (:id)
 
-        console.log(`--- Fetching products for User ID: ${userId} ---`);
-
-        // SQL Query: ดึงข้อมูลสินค้าที่ owner_id ตรงกับผู้ใช้
+        // JOIN กับตาราง shops เพราะตาราง products ไม่มี owner_id โดยตรง
         const result = await pool.query(
-            `SELECT id, name, description, price_per_day, image_url, status, created_at 
-             FROM products 
-             WHERE owner_id = $1 
-             ORDER BY created_at DESC`, 
-            [userId]
+            `SELECT p.*, s.name AS shop_name 
+             FROM products p
+             JOIN shops s ON p.shop_id = s.id
+             WHERE s.owner_id = $1 AND p.is_active = TRUE
+             ORDER BY p.id DESC`,
+            [targetUserId]
         );
 
-        // ส่งข้อมูลกลับไปให้ Frontend
-        res.status(200).json({
+        res.json({
             success: true,
+            user_id: targetUserId,
             count: result.rowCount,
-            data: result.rows
+            products: result.rows
         });
-
     } catch (err) {
-        console.error("GET PRODUCTS ERROR:", err.message);
-        res.status(500).json({ 
-            success: false, 
-            message: "ไม่สามารถดึงข้อมูลสินค้าได้" 
-        });
+        console.error("GET USER PRODUCTS ERROR:", err);
+        res.status(500).json({ message: "ไม่สามารถดึงข้อมูลสินค้าของปู้ใช้นี้ได้" });
     }
 };
 
