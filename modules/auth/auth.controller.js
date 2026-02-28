@@ -120,9 +120,10 @@ export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
         const result = await pool.query(
-            `SELECT id, full_name, email, password, role, kyc_status, is_suspended, suspension_reason
-             FROM users WHERE LOWER(email) = LOWER($1)`,
-            [email]
+    `SELECT id, full_name, email, phone, password, role, kyc_status, is_suspended, suspension_reason
+     FROM users 
+     WHERE LOWER(email) = LOWER($1) OR phone = $1`,
+     [email]
         );
 
         if (result.rowCount === 0) return res.status(400).json({ message: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" });
