@@ -133,6 +133,41 @@ export const getProductsByShop = async (req, res) => {
   }
 };
 
+// =============================
+// 📌 GET ALL PRODUCTS BY USER ID (ดึงสินค้าทั้งหมดของผู้ใช้ที่ Login อยู่)
+// =============================
+export const getMyProducts = async (req, res) => {
+    try {
+        // ดึง userId จาก Middleware ตรวจสอบ Token (req.user.id)
+        const userId = req.user.id; 
+
+        console.log(`--- Fetching products for User ID: ${userId} ---`);
+
+        // SQL Query: ดึงข้อมูลสินค้าที่ owner_id ตรงกับผู้ใช้
+        const result = await pool.query(
+            `SELECT id, name, description, price_per_day, image_url, status, created_at 
+             FROM products 
+             WHERE owner_id = $1 
+             ORDER BY created_at DESC`, 
+            [userId]
+        );
+
+        // ส่งข้อมูลกลับไปให้ Frontend
+        res.status(200).json({
+            success: true,
+            count: result.rowCount,
+            data: result.rows
+        });
+
+    } catch (err) {
+        console.error("GET PRODUCTS ERROR:", err.message);
+        res.status(500).json({ 
+            success: false, 
+            message: "ไม่สามารถดึงข้อมูลสินค้าได้" 
+        });
+    }
+};
+
 
 // =============================
 // 📌 UPDATE PRODUCT

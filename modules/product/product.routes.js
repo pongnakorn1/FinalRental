@@ -6,6 +6,7 @@ import {
     createProduct, 
     getAllProducts, 
     getProductsByShop, 
+    getMyProducts,
     updateProduct, 
     deleteProduct, 
     toggleProductStatus 
@@ -60,6 +61,9 @@ router.post(
 // 📌 สร้างสินค้า (ต้อง login + KYC)
 router.post('/', authenticateToken, requireVerified, createProduct);
 
+// 📌 1. ดึงสินค้าของตัวเอง (ต้องอยู่ก่อน /:id เพื่อไม่ให้สับสน)
+router.get('/me', authenticateToken, getMyProducts);
+
 // 📌 ดูสินค้าทั้งหมด
 router.get('/', getAllProducts);
 
@@ -74,5 +78,8 @@ router.delete('/:id', authenticateToken, requireVerified, deleteProduct);
 
 // 📌 สลับสถานะการให้เช่า
 router.patch('/:id/toggle', authenticateToken, toggleProductStatus);
+
+// 📌 ถ้าเพื่อนอยากได้แบบระบุ ID ของใครก็ได้ใน URL (เช่น /api/products/user/5)
+router.get('/user/:id', getProductsByUserId);
 
 export default router;
