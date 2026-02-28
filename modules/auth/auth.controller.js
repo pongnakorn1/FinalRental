@@ -184,35 +184,35 @@ if (emails && emails.length > 0) {
         else if (provider === 'facebook') idColumn = 'facebook_id';
         else if (provider === 'line') idColumn = 'line_id';
 
-        // 3. ตรวจสอบจาก Social ID (แม่นยำที่สุด)
         let result = await pool.query(`SELECT * FROM users WHERE ${idColumn} = $1`, [id]);
-        let user;
+let user;
 
-        if (result.rows.length === 0) {
-            // ✨ กรณีผู้ใช้ใหม่: สร้างบัญชีใหม่
-            const newUser = await pool.query(
-                `INSERT INTO users (full_name, email, ${idColumn}, role, kyc_status) 
-                 VALUES ($1, $2, $3, 'user', 'not_submitted') RETURNING *`,
-                [displayName || 'Social User', currentEmail, id]
-            );
-            user = newUser.rows[0];
-            
-            // สร้าง Wallet ให้ผู้ใช้ใหม่
-            await pool.query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0)", [user.id]);
-        } else {
-            // ✨ กรณีผู้ใช้เก่า: อัปเดตอีเมลจาก "จำลอง" เป็น "จริง"
-            user = result.rows[0];
-            
-            // ถ้าใน DB เป็นเมลจำลอง แต่ตอนนี้ได้เมลจริงมาแล้ว ให้ UPDATE ทันที
-            if (user.email.includes(`@${provider}.com`) && !currentEmail.includes(`@${provider}.com`)) {
-                const updatedUser = await pool.query(
-                    `UPDATE users SET email = $1 WHERE id = $2 RETURNING *`,
-                    [currentEmail, user.id]
-                );
-                user = updatedUser.rows[0];
-                console.log(`✅ Updated fake email to real email for user ID: ${user.id}`);
-            }
-        }
+if (result.rows.length > 0) {
+    // ✨ กรณีที่ 1: เจอ Social ID นี้ในระบบอยู่แล้ว (Login ปกติ)
+    user = result.rows[0];
+} else {
+    // ✨ กรณีที่ 2: ไม่เจอ Social ID แต่ลองเช็คจาก Email (ป้องกันการสมัครซ้ำ)
+    let emailCheck = await pool.query(`SELECT * FROM users WHERE LOWER(email) = LOWER($1)`, [currentEmail]);
+    
+    if (emailCheck.rows.length > 0) {
+        // พบ User ที่ใช้อีเมลนี้อยู่แล้ว -> ผูก Social ID เข้ากับไอดีเดิมที่มีอยู่
+        user = emailCheck.rows[0];
+        await pool.query(`UPDATE users SET ${idColumn} = $1 WHERE id = $2`, [id, user.id]);
+        console.log(`🔗 Linked ${provider} to existing user ID: ${user.id}`);
+    } else {
+        // ✨ กรณีที่ 3: ไม่เจอทั้ง ID และ Email -> สร้างผู้ใช้ใหม่จริงๆ
+        const newUser = await pool.query(
+            `INSERT INTO users (full_name, email, ${idColumn}, role, kyc_status) 
+             VALUES ($1, $2, $3, 'user', 'not_submitted') RETURNING *`,
+            [displayName || 'Social User', currentEmail, id]
+        );
+        user = newUser.rows[0];
+        
+        // สร้าง Wallet ให้ผู้ใช้ใหม่
+        await pool.query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0)", [user.id]);
+        console.log(`🆕 Created new user ID: ${user.id} via ${provider}`);
+    }
+}
 
         // 4. สร้าง JWT Token
         const token = jwt.sign(
