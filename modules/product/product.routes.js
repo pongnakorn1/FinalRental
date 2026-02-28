@@ -7,6 +7,7 @@ import {
     getAllProducts, 
     getProductsByShop, 
     getMyProducts,
+    getProductsByUserId,
     updateProduct, 
     deleteProduct, 
     toggleProductStatus 
