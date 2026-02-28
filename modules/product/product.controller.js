@@ -162,6 +162,27 @@ export const getProductsByUserId = async (req, res) => {
     }
 };
 
+// =============================
+// 📌 GET MY PRODUCTS (ดึงสินค้าของตัวเอง)
+// =============================
+export const getMyProducts = async (req, res) => {
+    try {
+        const userId = req.user.id; 
+        const result = await pool.query(
+            `SELECT p.*, s.name AS shop_name 
+             FROM products p
+             JOIN shops s ON p.shop_id = s.id
+             WHERE s.owner_id = $1
+             ORDER BY p.id DESC`, 
+            [userId]
+        );
+        res.json({ success: true, count: result.rowCount, products: result.rows });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Failed to fetch your products" });
+    }
+};
+
 
 // =============================
 // 📌 UPDATE PRODUCT
