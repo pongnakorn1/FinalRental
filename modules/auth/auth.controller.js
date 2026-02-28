@@ -152,7 +152,7 @@ export const login = async (req, res) => {
 };
 
 // =============================
-// 📌 SOCIAL LOGIN (Google, Facebook, LINE) - Updated Version
+// 📌 SOCIAL LOGIN (Google, Facebook, LINE) - Fixed Version
 // =============================
 export const socialLogin = async (req, res) => {
     try {
@@ -162,8 +162,10 @@ export const socialLogin = async (req, res) => {
 
         const { displayName, emails, id, provider } = req.user;
         
-        // 1. ดึง Email (ถ้ามีจริงใช้จริง ถ้าไม่มีใช้ ID@provider.com)
-        let currentEmail = (emails && emails.length > 0) ? emails[0].value : `${id}@${provider}.com`;
+        // 1. ดึง Email (เช็คทั้ง profile.emails และ profile._json.email)
+        let currentEmail = (emails && emails.length > 0) ? emails[0].value : 
+                           (req.user._json && req.user._json.email) ? req.user._json.email : 
+                           `${id}@${provider}.com`;
 
         // 2. กำหนดชื่อคอลัมน์ตาม Provider
         let idColumn;
@@ -187,10 +189,10 @@ export const socialLogin = async (req, res) => {
             // สร้าง Wallet ให้ผู้ใช้ใหม่
             await pool.query("INSERT INTO wallets (user_id, balance) VALUES ($1, 0)", [user.id]);
         } else {
-            // ✨ กรณีผู้ใช้เก่า: ตรวจสอบว่าต้องอัปเดตอีเมลจาก "จำลอง" เป็น "จริง" หรือไม่
+            // ✨ กรณีผู้ใช้เก่า: อัปเดตอีเมลจาก "จำลอง" เป็น "จริง"
             user = result.rows[0];
             
-            // ถ้าใน DB เป็นเมลจำลอง (@line.com) แต่ตอนนี้ได้เมลจริงมาแล้ว ให้ UPDATE ทันที
+            // ถ้าใน DB เป็นเมลจำลอง แต่ตอนนี้ได้เมลจริงมาแล้ว ให้ UPDATE ทันที
             if (user.email.includes(`@${provider}.com`) && !currentEmail.includes(`@${provider}.com`)) {
                 const updatedUser = await pool.query(
                     `UPDATE users SET email = $1 WHERE id = $2 RETURNING *`,
