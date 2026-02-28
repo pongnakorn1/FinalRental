@@ -162,11 +162,22 @@ export const socialLogin = async (req, res) => {
 
         const { displayName, emails, id, provider } = req.user;
         
-        // 1. ดึง Email (เช็คทั้ง profile.emails และ profile._json.email)
-        let currentEmail = (emails && emails.length > 0) ? emails[0].value : 
-                           (req.user._json && req.user._json.email) ? req.user._json.email : 
-                           `${id}@${provider}.com`;
+        // 1. ดึง Email (เจาะจงที่โครงสร้างของ LINE มากขึ้น)
+let currentEmail;
 
+if (emails && emails.length > 0) {
+    // เช็คจากมาตรฐาน Passport ทั่วไป
+    currentEmail = emails[0].value;
+} else if (req.user._json && req.user._json.email) {
+    // ✨ สำคัญ: LINE มักจะเก็บอีเมลไว้ใน _json.email
+    currentEmail = req.user._json.email;
+} else if (req.user.email) {
+    // เช็คเผื่อกรณีอื่นๆ
+    currentEmail = req.user.email;
+} else {
+    // ถ้าพยายามทุกทางแล้วไม่มีจริงๆ ค่อยใช้เมลจำลอง
+    currentEmail = `${id}@${provider}.com`;
+}
         // 2. กำหนดชื่อคอลัมน์ตาม Provider
         let idColumn;
         if (provider === 'google') idColumn = 'google_id';
