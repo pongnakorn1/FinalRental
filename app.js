@@ -20,38 +20,46 @@ import { processAutoRefunds } from "./modules/Interval/setInterval.controller.js
 import reviewRoutes from "./modules/Review/review.route.js";
 
 const app = express();
-app.set('trust proxy', 1); // ✅ เพิ่มบรรทัดนี้เพื่อให้ Session ทำงานบน Render ได้
+
+// ตั้งค่า Path สำหรับ ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ==========================================
 // 1. ตั้งค่าพื้นฐาน (CORS & Body Parser)
 // ==========================================
+// แก้ไข: รวม CORS เป็นอันเดียว และระบุ Origin ให้ชัดเจน
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3001', 
+  origin: [
+    'http://localhost:3000', 
+    'http://localhost:3001', 
+    process.env.CLIENT_URL // อย่าลืมใส่ URL ของหน้าเว็บคุณใน Render Env
+  ].filter(Boolean), // กรองค่าที่เป็น undefined ออก
   credentials: true
 }));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Middleware สำหรับ Log Request (ย้ายมาไว้ด้านบนเพื่อดูทุก Request)
+// Middleware สำหรับ Log Request
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
   next();
 });
 
 // ==========================================
-// 2. 🔥 ตั้งค่า Session (ต้องอยู่ก่อน Passport และ Routes)
+// 2. 🔥 ตั้งค่า Session (สำหรับ Passport)
 // ==========================================
+app.set('trust proxy', 1); // สำคัญสำหรับ Render
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'secret_key',
   resave: false,
   saveUninitialized: false,
   cookie: { 
-    secure: true,        // ต้องเป็น true เมื่อรันบน Production (HTTPS)
-    sameSite: 'none',    // สำคัญมากเพื่อให้ Redirect ข้ามโดเมนได้ (LINE -> Render)
-    maxAge: 24 * 60 * 60 * 1000 // 1 วัน
+    secure: process.env.NODE_ENV === 'production', // เป็น true เมื่ออยู่บน HTTPS (Render)
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: 24 * 60 * 60 * 1000 
   }
 }));
 
@@ -87,10 +95,10 @@ app.get('/', (req, res) => {
 // ==========================================
 const ONE_HOUR = 60 * 60 * 1000;
 setInterval(processAutoRefunds, ONE_HOUR);
-processAutoRefunds(); // รันทันที 1 รอบตอนเปิดเครื่อง
+// processAutoRefunds(); // เปิดคอมเมนต์นี้ถ้าต้องการรันทันทีที่ Start Server
 
 // ==========================================
-// 6. Centralized Error Handling (ไว้ท้ายสุด)
+// 6. Centralized Error Handling
 // ==========================================
 app.use((err, req, res, next) => {
   console.error(err.stack);
