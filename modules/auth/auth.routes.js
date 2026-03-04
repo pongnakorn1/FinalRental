@@ -1,12 +1,14 @@
 import express from 'express';
 import passport from 'passport'; 
-import { register, login, uploadKYC, socialLogin } from './auth.controller.js'; 
+import { register, login, uploadKYC, socialLogin, extractIDNumber } from './auth.controller.js'; 
 import { authenticateToken } from '../../middleware/auth.middleware.js'; 
 import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
 import path from 'path';
 
 const router = express.Router(); 
+
+
 
 // --- [ 1. ตั้งค่า Multer สำหรับ KYC ] ---
 const storage = multer.diskStorage({
@@ -36,7 +38,7 @@ router.post('/register', register);
 router.post('/login', login);
 router.post('/request-otp', requestOTP);
 router.post('/verify-otp', verifyOTP);
-
+router.post('/google-vision', upload.single('id_image'), extractIDNumber);
 // --- [ 3. Social Login (Google, Facebook, LINE) ] ---
 
 // --- Google ---
@@ -56,6 +58,9 @@ router.get('/google/callback',
 router.get('/facebook', passport.authenticate('facebook', { 
     scope: ['email'] 
 }));
+
+
+
 
 router.get('/facebook/callback', 
     passport.authenticate('facebook', { 

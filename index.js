@@ -1,4 +1,5 @@
 import http from 'http';
+import 'dotenv/config'
 import { Server } from 'socket.io';
 import app from './app.js';
 import pool from './config/db.js';
@@ -13,7 +14,7 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     // ดึงค่า URL หน้าบ้านจาก Environment Variable ที่ตั้งใน Render
-    origin: process.env.CLIENT_URL || "http://localhost:3001", 
+    origin: process.env.CLIENT_URL || "http://localhost:8082", 
     credentials: true
   },
   // บังคับใช้ websocket และ polling เพื่อความเสถียรบน Render Free Tier
