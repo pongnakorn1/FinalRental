@@ -154,22 +154,22 @@ if (!admin.apps.length) {
         let clientOptions = {};
 
 if (process.env.NODE_ENV === 'production') {
-        // 🌍 สำหรับใช้งานบน Render
+        // 🌍 สำหรับ Render (จัดฟอร์แมตกุญแจใหม่ให้ถูกต้อง 100%)
         
-        // 1. ดึงกุญแจออกมา ล้างช่องว่างและหัวท้ายที่อาจจะเบี้ยวออกให้หมด
+        // 1. ดึงกุญแจออกมา ล้างตัวอักษรแปลกปลอมและช่องว่างออกให้เกลี้ยง
         const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
             .replace(/\\n/g, '\n')
             .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
 
-        // 2. หั่นกุญแจและประกอบร่างใหม่ด้วย Template Literals (เครื่องหมาย ` `) 
-        // วิธีนี้คือมาตรฐาน Node.js 100% ไม่ต้องใช้ .insertAt ที่พังครับ
+        // 2. หั่นเนื้อกุญแจและประกอบร่างใหม่ (ขึ้นบรรทัดใหม่ทุก 64 ตัวอักษร)
+        // ใช้ Template Literals (``) แทน .insertAt ที่เคยพัง
         const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
 
         clientOptions = {
             credentials: {
                 project_id: "product-rental-login",
                 client_email: process.env.GOOGLE_VISION_EMAIL,
-                private_key: formattedKey // ✅ กุญแจที่ถูกจัดระเบียบเรียบร้อยแล้ว
+                private_key: formattedKey // ✅ กุญแจที่สมบูรณ์พร้อมใช้งาน
             }
         };
     } else {
@@ -179,8 +179,6 @@ if (process.env.NODE_ENV === 'production') {
         };
     }
 const client = new vision.ImageAnnotatorClient(clientOptions);
-            
-
             const imagePath = req.file.path;
             const [result] = await client.textDetection(imagePath);
             
