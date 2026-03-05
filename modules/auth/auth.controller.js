@@ -156,21 +156,22 @@ if (!admin.apps.length) {
 if (process.env.NODE_ENV === 'production') {
         // 🌍 สำหรับ Render (ใช้ค่าจาก Environment Variables)
         
-        // 1. ดึงกุญแจออกมาแล้วล้างหัวท้ายและช่องว่างออกให้หมดก่อน
+        // 1. ดึงกุญแจออกมา ล้างช่องว่างและหัวท้ายออกให้หมดก่อนเพื่อความสะอาด
         const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
-    .replace(/\\n/g, '\n')
-    .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
+            .replace(/\\n/g, '\n')
+            .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
 
-// ใช้การบวก String ธรรมดา (Template Literal) แทน .insertAt
-const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+        // 2. ประกอบกุญแจใหม่โดยบังคับตัดบรรทัดทุก 64 ตัวอักษรตามมาตรฐาน RSA
+        // ใช้การบวก String ธรรมดาแทน .insertAt ที่มีปัญหา
+        const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
 
-clientOptions = {
-    credentials: {
-        project_id: "product-rental-login",
-        client_email: process.env.GOOGLE_VISION_EMAIL,
-        private_key: formattedKey // ✅ ส่งค่าที่ประกอบร่างเสร็จแล้วไปใช้งาน
-    }
-};
+        clientOptions = {
+            credentials: {
+                project_id: "product-rental-login",
+                client_email: process.env.GOOGLE_VISION_EMAIL,
+                private_key: formattedKey 
+            }
+        };
     } else {
         // 💻 สำหรับรันในเครื่องตัวเอง (Local)
         clientOptions = {
