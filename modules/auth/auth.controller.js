@@ -154,31 +154,29 @@ if (!admin.apps.length) {
         let clientOptions = {};
 
 if (process.env.NODE_ENV === 'production') {
-    // 🌍 สำหรับ Render (ใช้ค่าจาก Environment Variables)
-    clientOptions = {
-        credentials: {
-            project_id: "product-rental-login",
-            client_email: process.env.GOOGLE_VISION_EMAIL,
-            // แก้ปัญหา \n โดยการใช้ .replace
-            private_key: process.env.GOOGLE_VISION_PRIVATE_KEY
-    .replace(/\\n/g, '\n') // ดักจับ \n แบบอักษร
-    .replace(/\n/g, '\n')  // ดักจับ การขึ้นบรรทัดใหม่จริง
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '') // ถอดหัวออกชั่วคราว
-    .replace(/-----END PRIVATE KEY-----/g, '')   // ถอดท้ายออกชั่วคราว
-    .replace(/\s/g, '') // ลบทุกอย่างที่ไม่ใช่ตัวกุญแจออกให้เกลี้ยง (Space, Tab, Newline)
-    .match(/.{1,64}/g)  // หั่นกุญแจใหม่ให้กว้าง 64 ตัวอักษรเป๊ะๆ ตามมาตรฐาน RSA
-    .join('\n')         // ใส่การขึ้นบรรทัดใหม่กลับเข้าไปในทุกๆ 64 ตัว
-    .insertAt(0, '-----BEGIN PRIVATE KEY-----\n') // ใส่หัวกลับคืน
-    .concat('\n-----END PRIVATE KEY-----'),      // ใส่ท้ายกลับคืน
-        }
-    };
-} else {
-    // 💻 สำหรับรันในเครื่องตัวเอง (Local)
-    clientOptions = {
-        keyFilename: path.join(process.cwd(), 'google-key.json')
-    };
-}
+        // 🌍 สำหรับ Render (ใช้ค่าจาก Environment Variables)
+        
+        // 1. ดึงกุญแจออกมาแล้วล้างหัวท้ายและช่องว่างออกให้หมดก่อน
+        const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
+            .replace(/\\n/g, '\n')
+            .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
 
+        // 2. หั่นกุญแจใหม่ให้กว้างบรรทัดละ 64 ตัวอักษร และประกอบร่างกลับคืนตามมาตรฐาน RSA
+        const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+
+        clientOptions = {
+            credentials: {
+                project_id: "product-rental-login",
+                client_email: process.env.GOOGLE_VISION_EMAIL,
+                private_key: formattedKey // ✅ ใช้กุญแจที่จัดฟอร์แมตใหม่แล้ว
+            }
+        };
+    } else {
+        // 💻 สำหรับรันในเครื่องตัวเอง (Local)
+        clientOptions = {
+            keyFilename: path.join(process.cwd(), 'google-key.json')
+        };
+    }
 const client = new vision.ImageAnnotatorClient(clientOptions);
             
 
