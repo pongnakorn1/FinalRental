@@ -161,10 +161,15 @@ if (process.env.NODE_ENV === 'production') {
             client_email: process.env.GOOGLE_VISION_EMAIL,
             // แก้ปัญหา \n โดยการใช้ .replace
             private_key: process.env.GOOGLE_VISION_PRIVATE_KEY
-                .replace(/\\n/g, '\n') // 1. เปลี่ยนตัวอักษร \n เป็นการขึ้นบรรทัดใหม่
-                .replace(/-----BEGIN PRIVATE KEY-----/g, '-----BEGIN PRIVATE KEY-----\n') // 2. บังคับขึ้นบรรทัดใหม่หลังหัวกุญแจ
-                .replace(/-----END PRIVATE KEY-----/g, '\n-----END PRIVATE KEY-----')    // 3. บังคับขึ้นบรรทัดใหม่ก่อนท้ายกุญแจ
-                .trim(),
+    .split(String.raw`\n`).join('\n') // วิธีดึงค่า \n ที่ชัวร์ที่สุด
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '-----BEGIN PRIVATE KEY-----\n')
+    .replace(/-----END PRIVATE KEY-----/g, '\n-----END PRIVATE KEY-----')
+    .replace(/\s+/g, (match, offset, string) => {
+        // ป้องกันไม่ให้ไปลบช่องว่างใน Header/Footer แต่ลบช่องว่างส่วนเกินในเนื้อหากุญแจ
+        if (offset > 25 && offset < string.length - 25) return '';
+        return match;
+    })
+    .trim(),
         }
     };
 } else {
