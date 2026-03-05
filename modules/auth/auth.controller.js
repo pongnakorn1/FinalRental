@@ -158,19 +158,19 @@ if (process.env.NODE_ENV === 'production') {
         
         // 1. ดึงกุญแจออกมาแล้วล้างหัวท้ายและช่องว่างออกให้หมดก่อน
         const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
-            .replace(/\\n/g, '\n')
-            .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
+    .replace(/\\n/g, '\n')
+    .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
 
-        // 2. หั่นกุญแจใหม่ให้กว้างบรรทัดละ 64 ตัวอักษร และประกอบร่างกลับคืนตามมาตรฐาน RSA
-        const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+// ใช้การบวก String ธรรมดา (Template Literal) แทน .insertAt
+const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
 
-        clientOptions = {
-            credentials: {
-                project_id: "product-rental-login",
-                client_email: process.env.GOOGLE_VISION_EMAIL,
-                private_key: formattedKey // ✅ ใช้กุญแจที่จัดฟอร์แมตใหม่แล้ว
-            }
-        };
+clientOptions = {
+    credentials: {
+        project_id: "product-rental-login",
+        client_email: process.env.GOOGLE_VISION_EMAIL,
+        private_key: formattedKey // ✅ ส่งค่าที่ประกอบร่างเสร็จแล้วไปใช้งาน
+    }
+};
     } else {
         // 💻 สำหรับรันในเครื่องตัวเอง (Local)
         clientOptions = {
