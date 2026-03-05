@@ -154,22 +154,22 @@ if (!admin.apps.length) {
         let clientOptions = {};
 
 if (process.env.NODE_ENV === 'production') {
-        // 🌍 สำหรับ Render (ใช้ค่าจาก Environment Variables)
+        // 🌍 สำหรับใช้งานบน Render
         
-        // 1. ดึงกุญแจออกมา ล้างช่องว่างและหัวท้ายออกให้หมดก่อนเพื่อความสะอาด
+        // 1. ดึงกุญแจออกมา ล้างช่องว่างและหัวท้ายที่อาจจะเบี้ยวออกให้หมด
         const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
             .replace(/\\n/g, '\n')
             .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
 
-        // 2. ประกอบกุญแจใหม่โดยบังคับตัดบรรทัดทุก 64 ตัวอักษรตามมาตรฐาน RSA
-        // ใช้การบวก String ธรรมดาแทน .insertAt ที่มีปัญหา
+        // 2. หั่นกุญแจและประกอบร่างใหม่ด้วย Template Literals (เครื่องหมาย ` `) 
+        // วิธีนี้คือมาตรฐาน Node.js 100% ไม่ต้องใช้ .insertAt ที่พังครับ
         const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
 
         clientOptions = {
             credentials: {
                 project_id: "product-rental-login",
                 client_email: process.env.GOOGLE_VISION_EMAIL,
-                private_key: formattedKey 
+                private_key: formattedKey // ✅ กุญแจที่ถูกจัดระเบียบเรียบร้อยแล้ว
             }
         };
     } else {
