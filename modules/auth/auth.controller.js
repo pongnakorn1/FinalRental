@@ -144,70 +144,70 @@ if (!admin.apps.length) {
 
 
 
-    export const extractIDNumber = async (req, res) => {
+  export const extractIDNumber = async (req, res) => {
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, message: "กรุณาอัปโหลดรูปภาพ" });
         }
 
-        // --- 🛠️ จุดแก้ที่ 1: ประกาศตัวแปรให้เสร็จก่อนเรียกใช้งาน ---
+        // --- 🛠️ จุดแก้ที่ 1: ประกาศตัวแปรไว้ด้านบนสุดเพื่อให้ทุกส่วนเข้าถึงได้ ---
         let clientOptions = {};
+        let formattedKeyForLog = "Using Local Key File"; // ไว้สำหรับแสดงผลใน console.log
 
-if (process.env.NODE_ENV === 'production') {
-        // 🌍 สำหรับ Render: จัดระเบียบกุญแจใหม่ให้เป๊ะตามมาตรฐาน RSA
-        
-        // 1. ล้างขยะ: ลบช่องว่าง และลบหัวท้ายเดิมออกก่อนเพื่อจัดใหม่ให้สะอาด
-        const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
-            .replace(/\\n/g, '\n')
-            .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
+        if (process.env.NODE_ENV === 'production') {
+            // 1. ล้างขยะ: ลบช่องว่าง และลบหัวท้ายเดิมออกก่อน
+            const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
+                .replace(/\\n/g, '\n')
+                .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
 
-        // 2. หั่นเนื้อกุญแจ: ตัดบรรทัดทุก 64 ตัวอักษร (มาตรฐาน RSA ที่ Google ต้องการ)
-        // 3. ประกอบร่าง: ใส่หัวและท้ายกลับเข้าไปด้วยวิธีบวก String ปกติ
-        // const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
-        const formattedKey = "-----BEGIN PRIVATE KEY-----\n" + rawKey.match(/.{1,64}/g).join('\n') + "\n-----END PRIVATE KEY-----\n";
-
-        clientOptions = {
-            credentials: {
-                project_id: "product-rental-login",
-                client_email: process.env.GOOGLE_VISION_EMAIL,
-                private_key: formattedKey // ✅ กุญแจที่ฟอร์แมตถูกต้อง 100%
-            }
-        };
-    } else {
-        // 💻 สำหรับ Local
-        clientOptions = {
-            keyFilename: path.join(process.cwd(), 'google-key.json')
-        };
-    }
-    console.log("Formatted Key Check:", formattedKey.substring(0, 50) + "..."); 
-// ดูว่าขึ้นต้นด้วย -----BEGIN PRIVATE KEY----- และมีการตัดบรรทัดสวยงามหรือไม่
-const client = new vision.ImageAnnotatorClient(clientOptions);
-            const imagePath = req.file.path;
-            const [result] = await client.textDetection(imagePath);
+            // 2. หั่นเนื้อกุญแจ และ 3. ประกอบร่าง (ประกาศตัวแปรข้างในนี้ได้เลย แต่ส่งเข้า clientOptions)
+            const formattedKey = "-----BEGIN PRIVATE KEY-----\n" + 
+                                 rawKey.match(/.{1,64}/g).join('\n') + 
+                                 "\n-----END PRIVATE KEY-----\n";
             
-            // --- 🛠️ จุดแก้ที่ 3: ดัก Error ถ้า Google สแกนข้อความไม่เจอ ---
-            if (!result.textAnnotations || result.textAnnotations.length === 0) {
-                return res.status(400).json({ success: false, message: "ไม่พบข้อความในรูปภาพ" });
-            }
+            formattedKeyForLog = formattedKey; // ฝากค่าไว้ให้ Log ดูด้านนอก
 
-            const fullText = result.textAnnotations[0].description;
-            const cleanText = fullText.replace(/[\s-]/g, "");
-            const idMatch = cleanText.match(/\d{13}/);
-            const scannedID = idMatch ? idMatch[0] : null;
-
-            return res.status(200).json({
-                success: true,
-                id: scannedID,
-                raw_text: fullText
-            });
-
-        } catch (err) {
-            console.error("OCR ERROR:", err.message);
-            // ถ้าขึ้น DECODER routines::unsupported แสดงว่า cleanKey ยังไม่ถูก
-            return res.status(500).json({ success: false, error: err.message });
+            clientOptions = {
+                credentials: {
+                    project_id: "product-rental-login",
+                    client_email: process.env.GOOGLE_VISION_EMAIL,
+                    private_key: formattedKey
+                }
+            };
+        } else {
+            // 💻 สำหรับ Local
+            clientOptions = {
+                keyFilename: path.join(process.cwd(), 'google-key.json')
+            };
         }
-    };
 
+        // --- ✅ บรรทัดนี้จะไม่ Error แล้ว เพราะเรามีตัวแปรรับค่าไว้ ---
+        console.log("Key Status:", formattedKeyForLog.substring(0, 50) + "..."); 
+
+        const client = new vision.ImageAnnotatorClient(clientOptions);
+        const imagePath = req.file.path;
+        const [result] = await client.textDetection(imagePath);
+        
+        if (!result.textAnnotations || result.textAnnotations.length === 0) {
+            return res.status(400).json({ success: false, message: "ไม่พบข้อความในรูปภาพ" });
+        }
+
+        const fullText = result.textAnnotations[0].description;
+        const cleanText = fullText.replace(/[\s-]/g, "");
+        const idMatch = cleanText.match(/\d{13}/);
+        const scannedID = idMatch ? idMatch[0] : null;
+
+        return res.status(200).json({
+            success: true,
+            id: scannedID,
+            raw_text: fullText
+        });
+
+    } catch (err) {
+        console.error("OCR ERROR:", err.message);
+        return res.status(500).json({ success: false, error: err.message });
+    }
+};
 // =============================
 // 📌 REGISTER
 // =============================
