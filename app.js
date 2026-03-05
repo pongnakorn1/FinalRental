@@ -33,6 +33,7 @@ app.use(cors({
   origin: [
     'http://localhost:8082', 
     'http://localhost:3001', 
+    'http://localhost:3000',
     process.env.CLIENT_URL // อย่าลืมใส่ URL ของหน้าเว็บคุณใน Render Env
   ].filter(Boolean), // กรองค่าที่เป็น undefined ออก
   credentials: true
