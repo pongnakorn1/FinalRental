@@ -160,7 +160,11 @@ if (process.env.NODE_ENV === 'production') {
             project_id: "product-rental-login",
             client_email: process.env.GOOGLE_VISION_EMAIL,
             // แก้ปัญหา \n โดยการใช้ .replace
-            private_key: process.env.GOOGLE_VISION_PRIVATE_KEY.replace(/\\n/g, '\n'),
+            private_key: process.env.GOOGLE_VISION_PRIVATE_KEY
+                .replace(/\\n/g, '\n') // 1. เปลี่ยนตัวอักษร \n เป็นการขึ้นบรรทัดใหม่
+                .replace(/-----BEGIN PRIVATE KEY-----/g, '-----BEGIN PRIVATE KEY-----\n') // 2. บังคับขึ้นบรรทัดใหม่หลังหัวกุญแจ
+                .replace(/-----END PRIVATE KEY-----/g, '\n-----END PRIVATE KEY-----')    // 3. บังคับขึ้นบรรทัดใหม่ก่อนท้ายกุญแจ
+                .trim(),
         }
     };
 } else {
