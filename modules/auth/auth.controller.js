@@ -154,15 +154,15 @@ if (!admin.apps.length) {
         let clientOptions = {};
 
 if (process.env.NODE_ENV === 'production') {
-        // 🌍 สำหรับ Render (จัดฟอร์แมตกุญแจใหม่ให้ถูกต้อง 100%)
+        // 🌍 สำหรับ Render (จัดฟอร์แมตใหม่ให้ถูกต้อง 100%)
         
-        // 1. ดึงกุญแจออกมา ล้างตัวอักษรแปลกปลอมและช่องว่างออกให้เกลี้ยง
+        // 1. ดึงค่ามาล้างช่องว่างและตัวอักษรแปลกปลอมออกให้เกลี้ยงก่อน
         const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
             .replace(/\\n/g, '\n')
             .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
 
         // 2. หั่นเนื้อกุญแจและประกอบร่างใหม่ (ขึ้นบรรทัดใหม่ทุก 64 ตัวอักษร)
-        // ใช้ Template Literals (``) แทน .insertAt ที่เคยพัง
+        // ใช้ Template Literals (``) แทน .insertAt ที่เคยพังในรอบก่อน
         const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
 
         clientOptions = {
@@ -173,7 +173,7 @@ if (process.env.NODE_ENV === 'production') {
             }
         };
     } else {
-        // 💻 สำหรับรันในเครื่องตัวเอง (Local)
+        // 💻 สำหรับ Local
         clientOptions = {
             keyFilename: path.join(process.cwd(), 'google-key.json')
         };
