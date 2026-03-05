@@ -161,15 +161,15 @@ if (process.env.NODE_ENV === 'production') {
             client_email: process.env.GOOGLE_VISION_EMAIL,
             // แก้ปัญหา \n โดยการใช้ .replace
             private_key: process.env.GOOGLE_VISION_PRIVATE_KEY
-    .split(String.raw`\n`).join('\n') // วิธีดึงค่า \n ที่ชัวร์ที่สุด
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '-----BEGIN PRIVATE KEY-----\n')
-    .replace(/-----END PRIVATE KEY-----/g, '\n-----END PRIVATE KEY-----')
-    .replace(/\s+/g, (match, offset, string) => {
-        // ป้องกันไม่ให้ไปลบช่องว่างใน Header/Footer แต่ลบช่องว่างส่วนเกินในเนื้อหากุญแจ
-        if (offset > 25 && offset < string.length - 25) return '';
-        return match;
-    })
-    .trim(),
+    .replace(/\\n/g, '\n') // ดักจับ \n แบบอักษร
+    .replace(/\n/g, '\n')  // ดักจับ การขึ้นบรรทัดใหม่จริง
+    .replace(/-----BEGIN PRIVATE KEY-----/g, '') // ถอดหัวออกชั่วคราว
+    .replace(/-----END PRIVATE KEY-----/g, '')   // ถอดท้ายออกชั่วคราว
+    .replace(/\s/g, '') // ลบทุกอย่างที่ไม่ใช่ตัวกุญแจออกให้เกลี้ยง (Space, Tab, Newline)
+    .match(/.{1,64}/g)  // หั่นกุญแจใหม่ให้กว้าง 64 ตัวอักษรเป๊ะๆ ตามมาตรฐาน RSA
+    .join('\n')         // ใส่การขึ้นบรรทัดใหม่กลับเข้าไปในทุกๆ 64 ตัว
+    .insertAt(0, '-----BEGIN PRIVATE KEY-----\n') // ใส่หัวกลับคืน
+    .concat('\n-----END PRIVATE KEY-----'),      // ใส่ท้ายกลับคืน
         }
     };
 } else {
