@@ -154,15 +154,15 @@ if (!admin.apps.length) {
         let clientOptions = {};
 
 if (process.env.NODE_ENV === 'production') {
-        // 🌍 สำหรับ Render: จัดระเบียบกุญแจใหม่ให้เป๊ะตามมาตรฐาน RSA
+        // 🌍 สำหรับ Render (จัดฟอร์แมตกุญแจใหม่ให้เป๊ะ)
         
-        // 1. ล้างขยะ: ลบช่องว่าง, ลบการขึ้นบรรทัดใหม่ที่เพี้ยน และลบหัวท้ายเดิมออกก่อน
+        // 1. ล้างขยะ: ลบช่องว่างและหัวท้ายที่อาจจะเพี้ยนออกให้หมดก่อน
         const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
             .replace(/\\n/g, '\n')
             .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
 
-        // 2. สร้างกุญแจใหม่: บังคับตัดบรรทัดทุก 64 ตัวอักษร และใส่หัวท้ายกลับเข้าไปให้ถูกต้อง
-        // เราเปลี่ยนจาก .insertAt() ที่พัง มาใช้การบวก String ธรรมดาแทน
+        // 2. หั่นเนื้อกุญแจใหม่: บังคับตัดบรรทัดทุก 64 ตัวอักษร (มาตรฐาน RSA)
+        // ใช้ Template Literals (``) แทน .insertAt ที่พังในรอบก่อน
         const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
 
         clientOptions = {
