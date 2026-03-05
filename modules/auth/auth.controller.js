@@ -163,7 +163,8 @@ if (process.env.NODE_ENV === 'production') {
 
         // 2. หั่นเนื้อกุญแจ: ตัดบรรทัดทุก 64 ตัวอักษร (มาตรฐาน RSA ที่ Google ต้องการ)
         // 3. ประกอบร่าง: ใส่หัวและท้ายกลับเข้าไปด้วยวิธีบวก String ปกติ
-        const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+        // const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
+        const formattedKey = "-----BEGIN PRIVATE KEY-----\n" + rawKey.match(/.{1,64}/g).join('\n') + "\n-----END PRIVATE KEY-----\n";
 
         clientOptions = {
             credentials: {
@@ -178,6 +179,8 @@ if (process.env.NODE_ENV === 'production') {
             keyFilename: path.join(process.cwd(), 'google-key.json')
         };
     }
+    console.log("Formatted Key Check:", formattedKey.substring(0, 50) + "..."); 
+// ดูว่าขึ้นต้นด้วย -----BEGIN PRIVATE KEY----- และมีการตัดบรรทัดสวยงามหรือไม่
 const client = new vision.ImageAnnotatorClient(clientOptions);
             const imagePath = req.file.path;
             const [result] = await client.textDetection(imagePath);
