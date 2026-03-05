@@ -1,6 +1,6 @@
 import express from 'express';
 import passport from 'passport'; 
-import { register, login, uploadKYC, socialLogin, extractIDNumber } from './auth.controller.js'; 
+import { register, login, uploadKYC, socialLogin, extractIDNumber ,getMyProfile, updateProfile} from './auth.controller.js'; 
 import { authenticateToken } from '../../middleware/auth.middleware.js'; 
 import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
@@ -90,5 +90,11 @@ router.post('/upload-kyc', authenticateToken, upload.fields([
     { name: 'face_image', maxCount: 1 }
   ]), uploadKYC
 );
+
+// 📌 ดูข้อมูลตัวเอง (ใช้ Token)
+router.get('/me', authenticateToken, getMyProfile);
+
+// 📌 แก้ไขข้อมูลส่วนตัว (ชื่อ, ที่อยู่, เบอร์โทร)
+router.patch('/update-profile', authenticateToken, updateProfile);
 
 export default router;

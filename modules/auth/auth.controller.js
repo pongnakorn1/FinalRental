@@ -408,3 +408,57 @@ export const uploadKYC = async (req, res) => {
         res.status(500).json({ message: "เกิดข้อผิดพลาดในการอัปโหลด KYC" });
     }
 };
+
+// 📌 1. ดึงข้อมูลโปรไฟล์ตัวเอง (Get My Profile)
+export const getMyProfile = async (req, res) => {
+    try {
+        const userId = req.user.id; // ได้มาจาก middleware authenticateToken
+
+        const result = await pool.query(
+    `SELECT id, full_name, email, phone, address, profile_image, kyc_status 
+     FROM users 
+     WHERE id = $1`,
+    [userId]
+);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: "ไม่พบข้อมูลผู้ใช้งาน" });
+        }
+
+        res.json({
+            success: true,
+            user: result.rows[0]
+        });
+    } catch (err) {
+        console.error("Get Profile Error:", err);
+        res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลโปรไฟล์" });
+    }
+};
+
+// 📌 2. อัปเดตข้อมูลที่อยู่และโปรไฟล์ (Update Profile/Address)
+export const updateProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const { full_name, address, phone_number } = req.body;
+
+        const result = await pool.query(
+            `UPDATE users 
+             SET full_name = COALESCE($1, full_name),
+                 address = COALESCE($2, address),
+                 phone_number = COALESCE($3, phone_number),
+                 updated_at = NOW()
+             WHERE id = $4
+             RETURNING id, full_name, email, address, phone_number`,
+            [full_name, address, phone_number, userId]
+        );
+
+        res.json({
+            success: true,
+            message: "อัปเดตข้อมูลสำเร็จ",
+            user: result.rows[0]
+        });
+    } catch (err) {
+        console.error("Update Profile Error:", err);
+        res.status(500).json({ message: "ไม่สามารถอัปเดตข้อมูลได้" });
+    }
+};
