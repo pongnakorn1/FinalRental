@@ -154,22 +154,22 @@ if (!admin.apps.length) {
         let clientOptions = {};
 
 if (process.env.NODE_ENV === 'production') {
-        // 🌍 สำหรับ Render: จัดระเบียบกุญแจใหม่ให้เป๊ะตามมาตรฐาน RSA
+        // 🌍 สำหรับ Render: จัดฟอร์แมตกุญแจให้เป๊ะตามมาตรฐาน RSA
         
-        // 1. ล้างขยะ: ลบช่องว่าง, ลบ \n ที่เป็นตัวอักษร และลบหัวท้ายเดิมออกก่อน
+        // 1. ล้างขยะ: ลบช่องว่าง และลบหัวท้ายเดิมออกก่อนเพื่อจัดใหม่
         const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
             .replace(/\\n/g, '\n')
             .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
 
-        // 2. สร้างกุญแจใหม่: หั่นเนื้อกุญแจให้กว้างบรรทัดละ 64 ตัวอักษรตามสเปก Google
-        // ใช้ Template Literals (``) แทน .insertAt ที่พังในรอบที่แล้ว
+        // 2. หั่นเนื้อกุญแจ: ตัดบรรทัดทุก 64 ตัวอักษร (ห้ามขาดห้ามเกิน)
+        // 3. ประกอบร่าง: ใส่หัวและท้ายกลับเข้าไปด้วย Template Literals (``)
         const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
 
         clientOptions = {
             credentials: {
                 project_id: "product-rental-login",
                 client_email: process.env.GOOGLE_VISION_EMAIL,
-                private_key: formattedKey // ✅ กุญแจที่ฟอร์แมตถูกต้องสมบูรณ์
+                private_key: formattedKey // ✅ กุญแจที่ฟอร์แมตถูกต้อง 100%
             }
         };
     } else {
