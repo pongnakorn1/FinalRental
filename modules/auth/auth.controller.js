@@ -154,15 +154,15 @@ if (!admin.apps.length) {
         let clientOptions = {};
 
 if (process.env.NODE_ENV === 'production') {
-        // 🌍 สำหรับ Render: จัดฟอร์แมตกุญแจให้เป๊ะตามมาตรฐาน RSA
+        // 🌍 สำหรับ Render: จัดระเบียบกุญแจใหม่ให้เป๊ะตามมาตรฐาน RSA
         
-        // 1. ล้างขยะ: ลบช่องว่าง และลบหัวท้ายเดิมออกก่อนเพื่อจัดใหม่
+        // 1. ล้างขยะ: ลบช่องว่าง และลบหัวท้ายเดิมออกก่อนเพื่อจัดใหม่ให้สะอาด
         const rawKey = process.env.GOOGLE_VISION_PRIVATE_KEY
             .replace(/\\n/g, '\n')
             .replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
 
-        // 2. หั่นเนื้อกุญแจ: ตัดบรรทัดทุก 64 ตัวอักษร (ห้ามขาดห้ามเกิน)
-        // 3. ประกอบร่าง: ใส่หัวและท้ายกลับเข้าไปด้วย Template Literals (``)
+        // 2. หั่นเนื้อกุญแจ: ตัดบรรทัดทุก 64 ตัวอักษร (มาตรฐาน RSA ที่ Google ต้องการ)
+        // 3. ประกอบร่าง: ใส่หัวและท้ายกลับเข้าไปด้วยวิธีบวก String ปกติ
         const formattedKey = `-----BEGIN PRIVATE KEY-----\n${rawKey.match(/.{1,64}/g).join('\n')}\n-----END PRIVATE KEY-----`;
 
         clientOptions = {
@@ -228,13 +228,28 @@ export const register = async (req, res) => {
         }
 
         await dbClient.query("BEGIN");
+        
+        // 🛠️ แก้ไข: ดึง email และ phone ออกมาเช็คด้วย
         const checkUser = await dbClient.query(
-            "SELECT id FROM users WHERE email = $1 OR phone = $2",
+            "SELECT email, phone FROM users WHERE email = $1 OR phone = $2",
             [email, finalPhone]
         );
+        
         if (checkUser.rowCount > 0) {
             await dbClient.query("ROLLBACK");
-            return res.status(400).json({ message: "อีเมลหรือเบอร์โทรศัพท์นี้ถูกใช้งานแล้ว" });
+            
+            // 🛠️ ตรวจสอบว่าซ้ำที่ไหน โดยใช้ .some() เผื่อกรณีที่อีเมลและเบอร์โทรไปซ้ำกับ user 2 คนที่ต่างกัน
+            const isEmailUsed = checkUser.rows.some(row => row.email === email);
+            const isPhoneUsed = checkUser.rows.some(row => row.phone === finalPhone);
+
+            // ส่ง Response กลับไปพร้อมระบุ field เพื่อให้ Frontend ทำงานง่ายขึ้น
+            if (isEmailUsed && isPhoneUsed) {
+                return res.status(400).json({ message: "อีเมลและเบอร์โทรศัพท์นี้ถูกใช้งานแล้ว", field: "both" });
+            } else if (isEmailUsed) {
+                return res.status(400).json({ message: "อีเมลนี้ถูกใช้งานแล้ว", field: "email" });
+            } else if (isPhoneUsed) {
+                return res.status(400).json({ message: "เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว", field: "phone" });
+            }
         }
 
         const hashedPassword = await bcrypt.hash(password, 10);
