@@ -32,22 +32,31 @@ export const createProduct = async (req, res) => {
     }
     const shopId = shopResult.rows[0].id;
 
-    // 4. 🔥 ประมวลผลรูปภาพด้วย Sharp (ย่อขนาด + แปลงเป็น WebP)
+    // 4. 🔥 ประมวลผลรูปภาพด้วย Sharp (เพิ่มการสร้างโฟลเดอร์อัตโนมัติ)
+    
+    
+    // 🛠️ สิ่งที่เพิ่มเข้ามา: สั่งให้สร้างโฟลเดอร์ uploads/products ถ้ายังไม่มี
+    const productUploadDir = path.join('uploads', 'products');
+    if (!fs.existsSync(productUploadDir)) {
+      fs.mkdirSync(productUploadDir, { recursive: true });
+    }
+
     const processedImageUrls = await Promise.all(
       files.map(async (file) => {
         const fileName = `prod-${Date.now()}-${Math.round(Math.random() * 1e9)}.webp`;
-        const outputPath = path.join("uploads/products", fileName);
+        const outputPath = path.join(productUploadDir, fileName); // ชี้เป้าไปที่โฟลเดอร์ที่เพิ่งสร้าง
 
         await sharp(file.path)
-          .resize(1280, 1280, { fit: "inside", withoutEnlargement: true }) // ย่อขนาดแต่ไม่ขยายภาพที่เล็กอยู่แล้ว
+          .resize(1280, 1280, { fit: "inside", withoutEnlargement: true }) // ย่อขนาด
           .webp({ quality: 80 }) // แปลงเป็น WebP คุณภาพ 80%
-          .toFile(outputPath);
+          .toFile(outputPath); // เซฟไฟล์ลงโฟลเดอร์
 
-        // ลบไฟล์ต้นฉบับ (Temporary file) ที่ Multer เก็บไว้เพื่อประหยัดพื้นที่
+        // ลบไฟล์ต้นฉบับที่ Multer เก็บไว้ (ไฟล์ขยะ)
         if (fs.existsSync(file.path)) {
             fs.unlinkSync(file.path);
         }
 
+        // คืนค่า Path เพื่อเอาไปเก็บลง Database
         return `/uploads/products/${fileName}`;
       })
     );
@@ -90,12 +99,7 @@ export const getAllProducts = async (req, res) => {
     // แก้ไข SQL ให้เพิ่มเงื่อนไข WHERE p.is_active = TRUE
     const result = await pool.query(
       `SELECT 
-         p.id,
-         p.name,
-         p.description,
-         p.price_per_day,
-         p.quantity,
-         p.is_active,
+         p.id, p.name, p.description, p.price_per_day, p.quantity, p.is_active, p.images, 
          s.name AS shop_name
        FROM products p
        JOIN shops s ON p.shop_id = s.id
@@ -119,7 +123,7 @@ export const getProductsByShop = async (req, res) => {
     // เพิ่ม WHERE is_active = TRUE
     const result = await pool.query(
       `SELECT 
-         id, name, description, price_per_day, quantity, is_active
+         id, name, description, price_per_day, quantity, is_active, images
        FROM products
        WHERE shop_id = $1 AND is_active = TRUE
        ORDER BY id DESC`,

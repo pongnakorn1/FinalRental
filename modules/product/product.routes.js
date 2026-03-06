@@ -59,9 +59,6 @@ router.post(
     createProduct
 );
 
-// 📌 สร้างสินค้า (ต้อง login + KYC)
-router.post('/', authenticateToken, requireVerified, createProduct);
-
 // 📌 1. ดึงสินค้าของตัวเอง (ต้องอยู่ก่อน /:id เพื่อไม่ให้สับสน)
 router.get('/me', authenticateToken, getMyProducts);
 
