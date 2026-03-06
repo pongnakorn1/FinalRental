@@ -99,7 +99,7 @@ export const getAllProducts = async (req, res) => {
     // แก้ไข SQL ให้เพิ่มเงื่อนไข WHERE p.is_active = TRUE
     const result = await pool.query(
       `SELECT 
-         p.id, p.name, p.description, p.price_per_day, p.quantity, p.is_active, p.images, 
+         p.id, p.name, p.description, p.price_per_day, p.quantity, p.is_active, p.deposit, p.images, 
          s.name AS shop_name
        FROM products p
        JOIN shops s ON p.shop_id = s.id
@@ -123,7 +123,7 @@ export const getProductsByShop = async (req, res) => {
     // เพิ่ม WHERE is_active = TRUE
     const result = await pool.query(
       `SELECT 
-         id, name, description, price_per_day, quantity, is_active, images
+         id, name, description, price_per_day, quantity, is_active, images, deposit
        FROM products
        WHERE shop_id = $1 AND is_active = TRUE
        ORDER BY id DESC`,
@@ -189,16 +189,16 @@ export const getMyProducts = async (req, res) => {
 
 
 // =============================
-// 📌 UPDATE PRODUCT
+// 📌 UPDATE PRODUCT (เพิ่ม deposit แล้ว ✅)
 // =============================
 export const updateProduct = async (req, res) => {
   const client = await pool.connect();
   try {
     const productId = req.params.id;
     const userId = req.user.id;
-    const { name, description, price_per_day, quantity } = req.body;
+    // 1. ดึง deposit ออกมาจาก body
+    const { name, description, price_per_day, quantity, deposit } = req.body;
 
-    // 1. ตรวจสอบความเป็นเจ้าของสินค้าผ่าน Shop
     const checkOwner = await client.query(
       `SELECT p.id, p.shop_id 
        FROM products p
@@ -213,7 +213,7 @@ export const updateProduct = async (req, res) => {
       });
     }
 
-    // 2. Validation ตรวจสอบความถูกต้องของข้อมูล
+    // 2. Validation ตรวจสอบความถูกต้อง
     if (price_per_day !== undefined && (isNaN(price_per_day) || price_per_day <= 0)) {
       return res.status(400).json({ message: "ราคาต่อวันต้องเป็นตัวเลขที่มากกว่า 0" });
     }
@@ -222,8 +222,12 @@ export const updateProduct = async (req, res) => {
       return res.status(400).json({ message: "จำนวนสต็อกต้องเป็นตัวเลขที่ไม่ติดลบ" });
     }
 
-    // 3. เริ่มการอัปเดตข้อมูล (ใช้เพียง Query เดียวที่รองรับค่า Null)
-    // ถ้าตัวแปรไหนไม่ได้ส่งมา ($ เป็น NULL) จะใช้ค่าเดิมจาก Database (เช่น name = name)
+    // ตรวจสอบค่ามัดจำ (ถ้าส่งมา ต้องมากกว่า 0)
+    if (deposit !== undefined && (isNaN(deposit) || Number(deposit) <= 0)) {
+      return res.status(400).json({ message: "ค่ามัดจำต้องเป็นตัวเลขที่มากกว่า 0" });
+    }
+
+    // 3. อัปเดตข้อมูล (เพิ่ม deposit ใน Query)
     const result = await client.query(
       `UPDATE products
        SET
@@ -231,15 +235,17 @@ export const updateProduct = async (req, res) => {
          description = CASE WHEN $2::text IS NULL THEN description ELSE $2 END,
          price_per_day = CASE WHEN $3::numeric IS NULL THEN price_per_day ELSE $3 END,
          quantity = CASE WHEN $4::integer IS NULL THEN quantity ELSE $4 END,
+         deposit = CASE WHEN $5::numeric IS NULL THEN deposit ELSE $5 END, -- 👈 เพิ่มตรงนี้
          updated_at = NOW()
-       WHERE id = $5
+       WHERE id = $6
        RETURNING *`,
       [
         name !== undefined ? name : null, 
         description !== undefined ? description : null, 
         price_per_day !== undefined ? price_per_day : null, 
         quantity !== undefined ? quantity : null, 
-        productId
+        deposit !== undefined ? deposit : null, // 👈 ส่งค่าเข้า $5
+        productId // $6
       ]
     );
 
@@ -262,8 +268,6 @@ export const updateProduct = async (req, res) => {
     client.release();
   }
 };
-
-
 // =============================
 // 📌 DELETE PRODUCT
 // =============================
