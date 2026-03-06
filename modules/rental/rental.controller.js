@@ -337,3 +337,43 @@ export const getTransactionHistory = async (req, res) => {
         res.status(500).json({ message: error.message });
     }
 };
+
+// ดึงรายการที่ "เราไปเช่าคนอื่น" (สำหรับหน้า รายการเช่าของฉัน - ฝั่งผู้เช่า)
+export const getRenterRentals = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const result = await pool.query(
+            `SELECT b.*, p.name as product_name, p.images, s.name as shop_name 
+             FROM bookings b
+             JOIN products p ON b.product_id = p.id
+             JOIN shops s ON p.shop_id = s.id
+             WHERE b.renter_id = $1 
+             ORDER BY b.created_at DESC`, // ลบลูกน้ำออกและใส่ Backtick ครอบ
+            [userId]
+        );
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Fetch rentals failed" });
+    }
+};
+
+// ดึงรายการที่ "มีคนมาเช่าของร้านเรา" (สำหรับฝั่งเจ้าของร้าน)
+export const getOwnerRentals = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const result = await pool.query(
+            `SELECT b.*, p.name as product_name, p.images, u.full_name as renter_name
+             FROM bookings b
+             JOIN products p ON b.product_id = p.id
+             JOIN users u ON b.renter_id = u.id
+             WHERE b.owner_id = $1 
+             ORDER BY b.created_at DESC`, // ลบลูกน้ำออกและใส่ Backtick ครอบ
+            [userId]
+        );
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Fetch owner rentals failed" });
+    }
+};

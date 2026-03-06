@@ -4,7 +4,9 @@ import {
   ownerApproveRental,
   updateRentalStatus,
   getWalletBalance,      // <-- ฟังก์ชันใหม่
-  getTransactionHistory  // <-- ฟังก์ชันใหม่
+  getTransactionHistory, // <-- ฟังก์ชันใหม่
+  getRenterRentals, // <--- เพิ่มชื่อนี้เข้าไป
+  getOwnerRentals
 } from './rental.controller.js';
 
 import { authenticateToken } from '../../middleware/auth.middleware.js';
@@ -50,5 +52,10 @@ router.get(
   authenticateToken,
   getTransactionHistory
 );
+
+
+// เพิ่ม 2 เส้นทางนี้เข้าไปครับ
+router.get('/renter', authenticateToken, getRenterRentals); // สำคัญมาก: เพื่อให้แอปหน้า "รายการเช่า" ทำงานได้
+router.get('/owner', authenticateToken, getOwnerRentals);   // สำหรับฝั่งร้านค้าดูรายการที่มีคนเช่า
 
 export default router;
