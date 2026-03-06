@@ -8,15 +8,14 @@ import fs from "fs";
 // =============================
 export const createProduct = async (req, res) => {
   try {
-    const { name, description, price_per_day, quantity } = req.body;
+    const { name, description, price_per_day, quantity, deposit } = req.body;
     const userId = req.user.id;
     const files = req.files; // ไฟล์ดิบจาก Multer (25MB)
 
-    // 1. Validation พื้นฐาน
-    if (!name || !price_per_day || quantity === undefined) {
-      return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน" });
-    }
-
+    // ตรวจสอบข้อมูลเบื้องต้น
+if (!name || !price_per_day || quantity === undefined || deposit === undefined) {
+  return res.status(400).json({ message: "กรุณากรอกข้อมูลให้ครบถ้วน รวมทั้งค่ามัดจำ" });
+}
     // 2. ตรวจสอบจำนวนรูป (4-10 รูป)
     if (!files || files.length < 4) {
       return res.status(400).json({ message: "ต้องอัปโหลดรูปภาพสินค้าอย่างน้อย 4 รูป" });
@@ -62,20 +61,21 @@ export const createProduct = async (req, res) => {
     );
 
     // 5. บันทึกลง Database
-    const result = await pool.query(
-      `INSERT INTO products
-       (name, description, price_per_day, quantity, shop_id, images)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
-      [
-        name.trim(),
-        description?.trim() || null,
-        price_per_day,
-        quantity,
-        shopId,
-        JSON.stringify(processedImageUrls)
-      ]
-    );
+const result = await pool.query(
+  `INSERT INTO products
+    (name, description, price_per_day, quantity, shop_id, images, deposit)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    RETURNING *`,
+  [
+    name.trim(),
+    description?.trim() || null,
+    price_per_day,
+    quantity,
+    shopId,
+    JSON.stringify(processedImageUrls),
+    deposit 
+  ]
+);
 
     res.status(201).json({
       success: true,
