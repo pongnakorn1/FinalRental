@@ -433,17 +433,60 @@ export const uploadKYC = async (req, res) => {
     }
 };
 
-// 📌 1. ดึงข้อมูลโปรไฟล์ตัวเอง (Get My Profile)
-export const getMyProfile = async (req, res) => {
+export const updateProfile = async (req, res) => {
     try {
-        const userId = req.user.id; // ได้มาจาก middleware authenticateToken
+        const userId = req.user.id;
+        
+        // 🛠️ แก้จุดนี้: เปลี่ยน undefined ให้เป็น null เพื่อไม่ให้ PostgreSQL แจ้ง Error
+        const full_name = req.body.full_name ?? null;
+        const address = req.body.address ?? null;
+        const phone = req.body.phone ?? null;
+
+        let profilePicturePath = null;
+        if (req.file) {
+            // เปลี่ยน \ เป็น / เผื่อไว้สำหรับการเรียกดูรูปบนเว็บ
+            profilePicturePath = req.file.path.replace(/\\/g, '/'); 
+        }
 
         const result = await pool.query(
-    `SELECT id, full_name, email, phone, address, profile_image, kyc_status 
-     FROM users 
-     WHERE id = $1`,
-    [userId]
-);
+            `UPDATE users 
+             SET full_name = COALESCE($1, full_name),
+                 address = COALESCE($2, address),
+                 phone = COALESCE($3, phone), 
+                 profile_picture = COALESCE($4, profile_picture)
+             WHERE id = $5
+             RETURNING id, full_name, email, address, phone, profile_picture`,
+            [full_name, address, phone, profilePicturePath, userId]
+        );
+        // (เอา updated_at = NOW() ออกก่อนเพื่อความชัวร์ ถ้าตารางคุณมีฟิลด์นี้ค่อยใส่กลับไปนะครับ)
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: "ไม่พบผู้ใช้งาน" });
+        }
+
+        res.json({
+            success: true,
+            message: "อัปเดตข้อมูลสำเร็จ",
+            user: result.rows[0]
+        });
+    } catch (err) {
+        // 🚨 ตรงนี้สำคัญมาก! ถ้ายังพังอีก ให้ไปดูใน Terminal ของ VS Code 
+        // มันจะบอกเป๊ะๆ ว่า Database ด่าเราว่าอะไร
+        console.error("Update Profile Error:", err); 
+        res.status(500).json({ success: false, message: "ไม่สามารถอัปเดตข้อมูลได้" });
+    }
+};
+
+// 📌 อย่าลืมแก้ getMyProfile ให้ดึงฟิลด์ที่ถูกต้องด้วยครับ
+export const getMyProfile = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const result = await pool.query(
+            `SELECT id, full_name, email, phone, address, profile_picture, kyc_status 
+             FROM users 
+             WHERE id = $1`,
+            [userId]
+        );
 
         if (result.rowCount === 0) {
             return res.status(404).json({ message: "ไม่พบข้อมูลผู้ใช้งาน" });
@@ -456,33 +499,5 @@ export const getMyProfile = async (req, res) => {
     } catch (err) {
         console.error("Get Profile Error:", err);
         res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลโปรไฟล์" });
-    }
-};
-
-// 📌 2. อัปเดตข้อมูลที่อยู่และโปรไฟล์ (Update Profile/Address)
-export const updateProfile = async (req, res) => {
-    try {
-        const userId = req.user.id;
-        const { full_name, address, phone_number } = req.body;
-
-        const result = await pool.query(
-            `UPDATE users 
-             SET full_name = COALESCE($1, full_name),
-                 address = COALESCE($2, address),
-                 phone_number = COALESCE($3, phone_number),
-                 updated_at = NOW()
-             WHERE id = $4
-             RETURNING id, full_name, email, address, phone_number`,
-            [full_name, address, phone_number, userId]
-        );
-
-        res.json({
-            success: true,
-            message: "อัปเดตข้อมูลสำเร็จ",
-            user: result.rows[0]
-        });
-    } catch (err) {
-        console.error("Update Profile Error:", err);
-        res.status(500).json({ message: "ไม่สามารถอัปเดตข้อมูลได้" });
     }
 };

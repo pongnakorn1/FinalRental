@@ -4,6 +4,7 @@ import { register, login, uploadKYC, socialLogin, extractIDNumber ,getMyProfile,
 import { authenticateToken } from '../../middleware/auth.middleware.js'; 
 import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
+import { uploadProfile } from "../../middleware/multer.config.js"; // ตัวอย่าง path
 import path from 'path';
 
 const router = express.Router(); 
@@ -94,7 +95,9 @@ router.post('/upload-kyc', authenticateToken, upload.fields([
 // 📌 ดูข้อมูลตัวเอง (ใช้ Token)
 router.get('/me', authenticateToken, getMyProfile);
 
-// 📌 แก้ไขข้อมูลส่วนตัว (ชื่อ, ที่อยู่, เบอร์โทร)
-router.patch('/update-profile', authenticateToken, updateProfile);
+
+
+// ✅ อัปเดตโปรไฟล์ (เพิ่ม upload.single เพื่อรับรูปโปรไฟล์)
+router.patch('/update-profile', authenticateToken, uploadProfile.single('profile_picture'), updateProfile);
 
 export default router;
