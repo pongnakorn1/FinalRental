@@ -1,10 +1,18 @@
 import multer from 'multer';
 import path from 'path';
+import fs from 'fs'; // 🟢 Import มาแล้ว ต้องเอามาใช้ด้วยครับ
 
 // ตั้งค่าโฟลเดอร์สำหรับเก็บรูปโปรไฟล์
 const storageProfile = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/profiles/'); // ตรวจสอบให้แน่ใจว่าคุณมีโฟลเดอร์นี้ในโปรเจกต์แล้ว
+    const dir = 'uploads/profiles/';
+    
+    // 🛠️ จุดที่แก้ไข: เช็คว่ามีโฟลเดอร์หรือยัง ถ้ายังไม่มีให้สร้างเลย!
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    cb(null, dir); 
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
