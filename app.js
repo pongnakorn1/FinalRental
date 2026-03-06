@@ -18,6 +18,7 @@ import moneyRoutes from './modules/money/money.routes.js';
 import autoRefundRoutes from "./modules/Interval/setInterval.route.js";
 import { processAutoRefunds } from "./modules/Interval/setInterval.controller.js";
 import reviewRoutes from "./modules/Review/review.route.js";
+import addressRoutes from "./modules/address/address.routes.js";
 
 const app = express();
 
@@ -83,6 +84,7 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/money', moneyRoutes);
 app.use("/api/reviews", reviewRoutes);
 app.use("/api/interval", autoRefundRoutes);
+app.use("/api/address", addressRoutes);
 
 // Static Folder สำหรับรูปภาพ
 app.use('/uploads', express.static(path.resolve(__dirname, 'uploads')));
