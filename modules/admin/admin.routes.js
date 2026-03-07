@@ -3,7 +3,9 @@ import express from "express";
 import { 
     viewPendingKYC, 
     approveRejectKYC, 
-    suspendUser 
+    suspendUser,
+    getForgotPasswordRequests, 
+    adminResetPassword
 } from './admin.controller.js';
 
 import { 
@@ -48,5 +50,15 @@ router.get("/disputes/:id", getDisputeById);
 
 // 3. ตัดสินข้อพิพาท (Approve/Refund/Reject)
 router.patch("/disputes/:id/decide", decideDispute);
+
+// ==========================================
+// 📌 ส่วนของ Password Management (ใหม่)
+// ==========================================
+
+// 1. ดูรายการผู้ใช้ที่กด "ลืมรหัสผ่าน" และรอการช่วยเหลือ
+router.get("/password-requests", getForgotPasswordRequests);
+
+// 2. Admin ทำการกรอกรหัสใหม่ให้ผู้ใช้รายคน
+router.post("/reset-user-password", adminResetPassword);
 
 export default router;

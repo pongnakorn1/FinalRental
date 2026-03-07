@@ -501,3 +501,38 @@ export const getMyProfile = async (req, res) => {
         res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลโปรไฟล์" });
     }
 };
+// ฟังก์ชันสำหรับ "ผู้ใช้" ส่งเรื่องลืมรหัสผ่าน
+export const requestPasswordReset = async (req, res) => {
+    try {
+        const { full_name, id_card_number, contact } = req.body; 
+
+        // 1. ตรวจสอบข้อมูลว่าตรงกับในระบบไหม (ชื่อ + เลขบัตร + (อีเมล หรือ เบอร์โทร))
+        const result = await pool.query(
+            `SELECT id FROM users 
+             WHERE full_name = $1 AND id_card_number = $2 
+             AND (email = $3 OR phone = $3)`,
+            [full_name, id_card_number, contact]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "ข้อมูลไม่ถูกต้อง ไม่พบผู้ใช้งานในระบบ" 
+            });
+        }
+
+        // 2. ปักธง (Flag) ว่า User คนนี้ขอรีเซ็ตรหัสผ่าน
+        await pool.query(
+            "UPDATE users SET password_reset_requested = true WHERE id = $1",
+            [result.rows[0].id]
+        );
+
+        res.json({ 
+            success: true, 
+            message: "ส่งคำขอเรียบร้อยแล้ว กรุณารอ Admin ตรวจสอบและติดต่อกลับ" 
+        });
+    } catch (err) {
+        console.error("FORGOT PASSWORD REQUEST ERROR:", err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการส่งคำขอ" });
+    }
+};

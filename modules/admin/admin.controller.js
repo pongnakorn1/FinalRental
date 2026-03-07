@@ -112,3 +112,38 @@ export const suspendUser = async (req, res) => {
         });
     }
 };
+// 1. ดึงรายชื่อผู้ที่ส่งคำขอ "ลืมรหัสผ่าน"
+export const getForgotPasswordRequests = async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT id, full_name, email, phone, id_card_number, kyc_status 
+             FROM users 
+             WHERE password_reset_requested = true`
+        );
+        res.json({ success: true, requests: result.rows });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "ไม่สามารถดึงข้อมูลคำขอได้" });
+    }
+};
+
+// 2. Admin ตั้งรหัสผ่านใหม่ให้ผู้ใช้
+export const adminResetPassword = async (req, res) => {
+    const { userId, newPassword } = req.body;
+    try {
+        // Hash รหัสใหม่ก่อนบันทึก
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        await pool.query(
+            `UPDATE users 
+             SET password = $1, password_reset_requested = false 
+             WHERE id = $2`,
+            [hashedPassword, userId]
+        );
+        
+        res.json({ success: true, message: "เปลี่ยนรหัสผ่านใหม่สำเร็จ และเคลียร์สถานะคำขอแล้ว" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน" });
+    }
+};
