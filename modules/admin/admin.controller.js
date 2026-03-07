@@ -1,4 +1,5 @@
 import pool from "../../config/db.js";
+import bcrypt from "bcrypt";
 
 // ==========================================
 // 📌 1. ดูรายการ KYC ที่รออนุมัติ (Pending)
