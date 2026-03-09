@@ -5,7 +5,8 @@ import {
     approveRejectKYC, 
     suspendUser,
     getForgotPasswordRequests, 
-    adminResetPassword
+    adminResetPassword,
+    approvePasswordReset
 } from './admin.controller.js';
 
 import { 
@@ -60,5 +61,7 @@ router.get("/password-requests", getForgotPasswordRequests);
 
 // 2. Admin ทำการกรอกรหัสใหม่ให้ผู้ใช้รายคน
 router.post("/reset-user-password", adminResetPassword);
+
+router.patch("/password-requests/:id/approve", approvePasswordReset);
 
 export default router;

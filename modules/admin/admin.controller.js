@@ -148,3 +148,37 @@ export const adminResetPassword = async (req, res) => {
         res.status(500).json({ message: "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน" });
     }
 };
+
+export const approvePasswordReset = async (req, res) => {
+    try {
+        // 📌 ดึง ID แบบปลอดภัย ไม่ให้แอปพัง (รองรับทั้งชื่อตัวแปร id และ userId)
+        const paramsId = req.params ? (req.params.userId || req.params.id) : null;
+        const bodyId = req.body ? req.body.userId : null;
+        const finalUserId = paramsId || bodyId;
+
+        
+
+        if (!finalUserId) {
+            return res.status(400).json({ success: false, message: "ไม่พบข้อมูล ID ของผู้ใช้" });
+        }
+
+        const result = await pool.query(
+            `UPDATE users 
+             SET password = pending_password, 
+                 pending_password = NULL, 
+                 password_reset_requested = false 
+             WHERE id = $1
+             RETURNING id`,
+            [finalUserId]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: "หาผู้ใช้งานไม่เจอ หรือไม่ได้ขอเปลี่ยนรหัสไว้" });
+        }
+
+        res.json({ success: true, message: "อนุมัติการเปลี่ยนรหัสผ่านสำเร็จ เปลี่ยนใน DB แล้ว!" });
+    } catch (err) {
+        console.error("APPROVE ERROR:", err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการอนุมัติ" });
+    }
+};

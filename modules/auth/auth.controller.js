@@ -501,38 +501,66 @@ export const getMyProfile = async (req, res) => {
         res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลโปรไฟล์" });
     }
 };
-// ฟังก์ชันสำหรับ "ผู้ใช้" ส่งเรื่องลืมรหัสผ่าน
-export const requestPasswordReset = async (req, res) => {
+// ขั้นตอนที่ 1: ตรวจสอบตัวตน (Verify User)
+// เรียกใช้เมื่อกดปุ่ม "รีเซ็ทรหัสผ่าน" หน้าแรก
+export const verifyUserBeforeReset = async (req, res) => {
     try {
-        const { full_name, id_card_number, contact } = req.body; 
+        const { full_name, id_card_number, contact } = req.body;
 
-        // 1. ตรวจสอบข้อมูลว่าตรงกับในระบบไหม (ชื่อ + เลขบัตร + (อีเมล หรือ เบอร์โทร))
-        const result = await pool.query(
+        const user = await pool.query(
             `SELECT id FROM users 
              WHERE full_name = $1 AND id_card_number = $2 
-             AND (email = $3 OR phone = $3)`,
+             AND (LOWER(email) = LOWER($3) OR phone = $3)`,
             [full_name, id_card_number, contact]
         );
 
-        if (result.rowCount === 0) {
+        if (user.rowCount === 0) {
             return res.status(404).json({ 
                 success: false, 
                 message: "ข้อมูลไม่ถูกต้อง ไม่พบผู้ใช้งานในระบบ" 
             });
         }
 
-        // 2. ปักธง (Flag) ว่า User คนนี้ขอรีเซ็ตรหัสผ่าน
+        // ถ้าผ่าน ให้ส่ง userId กลับไป เพื่อให้หน้าบ้านใช้ส่งในขั้นตอนถัดไป
+        res.json({ 
+            success: true, 
+            userId: user.rows[0].id,
+            message: "ตรวจสอบข้อมูลสำเร็จ" 
+        });
+    } catch (err) {
+        console.error("VERIFY ERROR:", err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการตรวจสอบข้อมูล" });
+    }
+};
+
+// ขั้นตอนที่ 2: บันทึกรหัสใหม่ (Submit Password)
+// เรียกใช้เมื่อกรอกรหัสใหม่แล้วกด "ยืนยันรหัสผ่าน"
+export const submitPasswordResetRequest = async (req, res) => {
+    try {
+        const { userId, newPassword, confirmPassword } = req.body;
+
+        if (newPassword !== confirmPassword) {
+            return res.status(400).json({ success: false, message: "รหัสผ่านไม่ตรงกัน" });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        
+
         await pool.query(
-            "UPDATE users SET password_reset_requested = true WHERE id = $1",
-            [result.rows[0].id]
+            `UPDATE users 
+             SET pending_password = $1, 
+                 password_reset_requested = true 
+             WHERE id = $2`,
+            [hashedPassword, userId]
         );
 
         res.json({ 
             success: true, 
-            message: "ส่งคำขอเรียบร้อยแล้ว กรุณารอ Admin ตรวจสอบและติดต่อกลับ" 
+            message: "ส่งคำขอเปลี่ยนรหัสผ่านแล้ว กรุณารอการอนุมัติจาก Admin" 
         });
     } catch (err) {
-        console.error("FORGOT PASSWORD REQUEST ERROR:", err);
-        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการส่งคำขอ" });
+        console.error("SUBMIT ERROR:", err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการบันทึกรหัสผ่าน" });
     }
 };

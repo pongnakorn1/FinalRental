@@ -1,6 +1,16 @@
 import express from 'express';
 import passport from 'passport'; 
-import { register, login, uploadKYC, socialLogin, extractIDNumber, getMyProfile, updateProfile, requestPasswordReset } from './auth.controller.js'; 
+import { 
+    register, 
+    login, 
+    uploadKYC, 
+    socialLogin, 
+    extractIDNumber, 
+    getMyProfile, 
+    updateProfile, 
+    verifyUserBeforeReset,     // <--- เพิ่มตัวนี้
+    submitPasswordResetRequest // <--- เพิ่มตัวนี้
+} from './auth.controller.js';
 import { authenticateToken } from '../../middleware/auth.middleware.js'; 
 import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
@@ -40,7 +50,7 @@ router.post('/login', login);
 router.post('/request-otp', requestOTP);
 router.post('/verify-otp', verifyOTP);
 router.post('/google-vision', upload.single('id_image'), extractIDNumber);
-router.post('/forgot-password-request', requestPasswordReset);
+
 // --- [ 3. Social Login (Google, Facebook, LINE) ] ---
 
 // --- Google ---
@@ -100,5 +110,9 @@ router.get('/me', authenticateToken, getMyProfile);
 
 // ✅ อัปเดตโปรไฟล์ (เพิ่ม upload.single เพื่อรับรูปโปรไฟล์)
 router.patch('/update-profile', authenticateToken, uploadProfile.single('profile_picture'), updateProfile);
+
+// เปลี่ยน Route เป็น 2 จังหวะ
+router.post('/verify-reset-user', verifyUserBeforeReset); // สำหรับหน้าแรก
+router.post('/forgot-password-request', submitPasswordResetRequest); // สำหรับหน้าสอง
 
 export default router;
