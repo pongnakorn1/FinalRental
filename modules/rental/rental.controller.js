@@ -44,7 +44,7 @@ export const createRental = async (req, res) => {
     // คำนวณวันและเงินแยก 3 ส่วน
     const start = new Date(start_date);
     const end = new Date(end_date);
-    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24))+1;
     
     const rent_fee = days * parseFloat(product.price_per_day) * quantity;
     const total_price = rent_fee + parseFloat(shipping_fee) + parseFloat(deposit_fee);
