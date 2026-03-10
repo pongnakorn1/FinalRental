@@ -1,4 +1,3 @@
-import express from 'express';
 import {
     createRental,
     getOwnerRentals,
@@ -17,10 +16,8 @@ import { requireVerified } from '../../middleware/verified.middleware.js';
 
 const router = express.Router();
 
-// ดูรายการเช่าแบบระบุ ID
-router.get('/:id', authenticateToken, getRentalById);
-
 // ==========================================
+
 // 📌 1. STATIC ROUTES (กลุ่มเส้นทางคงที่)
 // ต้องวางไว้ด้านบนสุด เพื่อไม่ให้ติดเงื่อนไข :id
 // ==========================================
@@ -36,6 +33,10 @@ router.get('/renter', authenticateToken, getRenterRentals);
 
 // ดึงรายการที่ "มีคนมาเช่าของร้านเรา"
 router.get('/owner', authenticateToken, getOwnerRentals);
+
+// ดูรายการเช่าแบบระบุ ID (ต้องวางไว้ด้านล่าง Static Routes)
+router.get('/:id', authenticateToken, getRentalById);
+
 
 
 // ==========================================
