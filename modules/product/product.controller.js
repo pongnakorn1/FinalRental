@@ -1,7 +1,7 @@
-import pool from "../../config/db.js";
-import sharp from "sharp";
-import path from "path";
 import fs from "fs";
+import path from "path";
+import sharp from "sharp";
+import pool from "../../config/db.js";
 
 // =============================
 // 📌 CREATE PRODUCT 
@@ -100,7 +100,7 @@ export const getAllProducts = async (req, res) => {
     const result = await pool.query(
       `SELECT 
          p.id, p.name, p.description, p.price_per_day, p.quantity, p.is_active, p.deposit, p.images, 
-         s.name AS shop_name
+         s.name AS shop_name, s.owner_id
        FROM products p
        JOIN shops s ON p.shop_id = s.id
        WHERE p.is_active = TRUE  -- ดึงเฉพาะที่เปิดใช้งาน
@@ -123,10 +123,12 @@ export const getProductsByShop = async (req, res) => {
     // เพิ่ม WHERE is_active = TRUE
     const result = await pool.query(
       `SELECT 
-         id, name, description, price_per_day, quantity, is_active, images, deposit
-       FROM products
-       WHERE shop_id = $1 AND is_active = TRUE
-       ORDER BY id DESC`,
+         p.id, p.name, p.description, p.price_per_day, p.quantity, p.is_active, p.images, p.deposit,
+         s.owner_id
+       FROM products p
+       JOIN shops s ON p.shop_id = s.id
+       WHERE p.shop_id = $1 AND p.is_active = TRUE
+       ORDER BY p.id DESC`,
       [shopId]
     );
 
