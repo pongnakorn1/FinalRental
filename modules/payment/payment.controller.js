@@ -133,10 +133,11 @@ export const getPendingVerifyBookings = async (req, res) => {
        WHERE b.status = 'waiting_admin_verify'
        ORDER BY b.created_at DESC`
     );
-    res.json(result.rows);
+    // ส่งกลับเป็นรูปแบบ Object ที่มี success: true
+    res.json({ success: true, data: result.rows });
   } catch (err) {
     console.error("Fetch Pending Slips Error:", err);
-    res.status(500).json({ message: "Fetch pending slips failed" });
+    res.status(500).json({ success: false, message: "Fetch pending slips failed" });
   }
 };
 

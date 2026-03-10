@@ -4,6 +4,8 @@ import {
     adminResetPassword,
     approvePasswordReset,
     approveRejectKYC,
+    getAllTransactions,
+    getAllUsers,
     getForgotPasswordRequests,
     suspendUser,
     viewPendingKYC
