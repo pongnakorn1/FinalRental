@@ -435,27 +435,59 @@ export const verifyUserBeforeReset = async (req, res) => {
     }
 };
 
-// ขั้นตอนที่ 2: บันทึกรหัสใหม่ (Submit Password)
-// เรียกใช้เมื่อกรอกรหัสใหม่แล้วกด "ยืนยันรหัสผ่าน"
+// ขั้นตอนที่ 2: บันทึกรหัสใหม่ (Submit Password) หรือ ส่งคำขอแบบขั้นตอนเดียว
+// เรียกใช้เมื่อกรอกข้อมูลครบแล้วกด "รีเซ็ทรหัสผ่าน"
 export const submitPasswordResetRequest = async (req, res) => {
     try {
-        const { userId, newPassword, confirmPassword } = req.body;
+        // รองรับทั้งแบบ ขั้นตอนเดียว (ส่งข้อมูลยืนยันตัวตน) และแบบ สองขั้นตอน (มี newPassword)
+        const { full_name, id_card, identifier, userId, newPassword, confirmPassword } = req.body;
 
-        if (newPassword !== confirmPassword) {
-            return res.status(400).json({ success: false, message: "รหัสผ่านไม่ตรงกัน" });
+        let targetUserId = userId;
+
+        // ถ้าเป็นการส่งคำขอแบบขั้นตอนเดียว (ส่งชื่อ, บัตรประชาชน, การติดต่อ)
+        if (!targetUserId && full_name && id_card && identifier) {
+            const user = await pool.query(
+                `SELECT id FROM users 
+                 WHERE full_name = $1 AND id_card_number = $2 
+                 AND (LOWER(email) = LOWER($3) OR phone = $3)`,
+                [full_name, id_card, identifier]
+            );
+
+            if (user.rowCount === 0) {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: "ข้อมูลไม่ถูกต้อง ไม่พบผู้ใช้งานในระบบ" 
+                });
+            }
+            targetUserId = user.rows[0].id;
         }
 
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        if (!targetUserId) {
+            return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบถ้วน" });
+        }
 
-        
-
-        await pool.query(
-            `UPDATE users 
-             SET pending_password = $1, 
-                 password_reset_requested = true 
-             WHERE id = $2`,
-            [hashedPassword, userId]
-        );
+        // กรณีที่มีการส่งรหัสผ่านใหม่มาด้วย (ถ้ามี)
+        if (newPassword) {
+            if (newPassword !== confirmPassword) {
+                return res.status(400).json({ success: false, message: "รหัสผ่านไม่ตรงกัน" });
+            }
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+            await pool.query(
+                `UPDATE users 
+                 SET pending_password = $1, 
+                     password_reset_requested = true 
+                 WHERE id = $2`,
+                [hashedPassword, targetUserId]
+            );
+        } else {
+            // กรณีส่งแค่คำขอให้ Admin ตรวจสอบ (ตามหน้า UI ปัจจุบัน)
+            await pool.query(
+                `UPDATE users 
+                 SET password_reset_requested = true 
+                 WHERE id = $1`,
+                [targetUserId]
+            );
+        }
 
         res.json({ 
             success: true, 
@@ -463,6 +495,6 @@ export const submitPasswordResetRequest = async (req, res) => {
         });
     } catch (err) {
         console.error("SUBMIT ERROR:", err);
-        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการบันทึกรหัสผ่าน" });
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการบันทึกคำขอ" });
     }
 };
