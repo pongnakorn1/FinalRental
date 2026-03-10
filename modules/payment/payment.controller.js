@@ -106,13 +106,13 @@ export const adminVerifyPayment = async (req, res) => {
       await client.query("COMMIT");
       res.json({ message: "Payment verified, rental completed" });
 
-    } else {
-      // ❌ 3. ปฏิเสธ: ส่งกลับไปสถานะรอชำระใหม่ หรือยกเลิก
+        } else {
+      // ❌ ปฏิเสธ: ส่งกลับไปสถานะรอชำระเงินใหม่ (เพื่อให้ตรงกับเงื่อนไขการเช็ค status ใน createPayment)
       await client.query(
         `UPDATE bookings 
-         SET status = 'owner_approved', 
-             payment_status = 'rejected' 
-         WHERE id = $1`,
+        SET status = 'waiting_payment', 
+            payment_status = 'rejected' 
+        WHERE id = $1`,
         [bookingId]
       );
 

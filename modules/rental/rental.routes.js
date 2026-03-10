@@ -3,9 +3,9 @@ import {
   createRental,
   ownerApproveRental,
   updateRentalStatus,
-  getWalletBalance,      // <-- ฟังก์ชันใหม่
-  getTransactionHistory, // <-- ฟังก์ชันใหม่
-  getRenterRentals, // <--- เพิ่มชื่อนี้เข้าไป
+  getWalletBalance,
+  getTransactionHistory,
+  getRenterRentals,
   getOwnerRentals
 } from './rental.controller.js';
 
@@ -14,48 +14,35 @@ import { requireVerified } from '../../middleware/verified.middleware.js';
 
 const router = express.Router();
 
-// 1. สำหรับผู้เช่า: สร้างรายการจอง (ต้อง Login และ Verify แล้ว)
-router.post(
-  '/',
-  authenticateToken,
-  requireVerified,
-  createRental
-);
+// ==========================================
+// 📌 1. STATIC ROUTES (กลุ่มเส้นทางคงที่)
+// ต้องวางไว้ด้านบนสุด เพื่อไม่ให้ติดเงื่อนไข :id
+// ==========================================
 
-// 2. สำหรับเจ้าของร้าน: อนุมัติการเช่า (ต้อง Login และ Verify แล้ว)
-router.put(
-  '/:id/owner-approve',
-  authenticateToken,
-  requireVerified,
-  ownerApproveRental
-);
+// ดูยอดเงินใน Wallet ของตัวเอง
+router.get('/wallet/balance', authenticateToken, getWalletBalance);
 
-// 3. สำหรับทั้งสองฝ่าย: อัปเดตสถานะตามลำดับ (ship, receive, return, verify)
-// แนะนำให้ใส่ requireVerified ไปด้วย เพื่อให้มั่นใจว่าคู่สัญญาทั้งสองฝ่ายตัวตนชัดเจน
-router.put(
-  '/:id/status', 
-  authenticateToken, 
-  requireVerified, 
-  updateRentalStatus
-);
+// ดูประวัติการเงิน (Transaction History)
+router.get('/wallet/transactions', authenticateToken, getTransactionHistory);
 
-// 4. ดูยอดเงินใน Wallet ของตัวเอง
-router.get(
-  '/wallet/balance',
-  authenticateToken,
-  getWalletBalance
-);
+// ดึงรายการที่ "เราไปเช่าคนอื่น"
+router.get('/renter', authenticateToken, getRenterRentals);
 
-// 5. ดูประวัติการเงิน (Transaction History)
-router.get(
-  '/wallet/transactions',
-  authenticateToken,
-  getTransactionHistory
-);
+// ดึงรายการที่ "มีคนมาเช่าของร้านเรา"
+router.get('/owner', authenticateToken, getOwnerRentals);
 
 
-// เพิ่ม 2 เส้นทางนี้เข้าไปครับ
-router.get('/renter', authenticateToken, getRenterRentals); // สำคัญมาก: เพื่อให้แอปหน้า "รายการเช่า" ทำงานได้
-router.get('/owner', authenticateToken, getOwnerRentals);   // สำหรับฝั่งร้านค้าดูรายการที่มีคนเช่า
+// ==========================================
+// 📌 2. ACTION ROUTES (กลุ่มการสร้างและแก้ไข)
+// ==========================================
+
+// สร้างรายการจอง (POST /)
+router.post('/', authenticateToken, requireVerified, createRental);
+
+// อนุมัติการเช่าโดยเจ้าของร้าน (:id)
+router.put('/:id/owner-approve', authenticateToken, requireVerified, ownerApproveRental);
+
+// อัปเดตสถานะตามลำดับ (ship, receive, return, verify)
+router.put('/:id/status', authenticateToken, requireVerified, updateRentalStatus);
 
 export default router;
