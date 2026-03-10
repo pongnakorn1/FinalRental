@@ -63,9 +63,11 @@ export const createRental = async (req, res) => {
 // 📌 2. CREATE PAYMENT (ผู้เช่าอัปโหลดรูปสลิป) - **แก้บั๊ก Error 500 แล้ว**
 // =============================================
 export const createPayment = async (req, res) => {
-  const client = await pool.connect();
+  let client = null;
   try {
+    client = await pool.connect();
     const { rental_id, slip_image } = req.body;
+
     const userId = req.user.id;
 
     if (!rental_id || !slip_image) {
@@ -108,13 +110,14 @@ export const createPayment = async (req, res) => {
     res.status(200).json({ success: true, message: "Upload slip successfully", booking: updatedBooking.rows[0] });
 
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (client) await client.query("ROLLBACK");
     console.error("Error at createPayment:", err);
     res.status(500).json({ message: "Payment upload failed: " + err.message });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 };
+
 
 // =============================================
 // 📌 3. OWNER APPROVE (เจ้าของกดยอมรับการเช่า)

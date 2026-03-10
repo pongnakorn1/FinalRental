@@ -1,24 +1,24 @@
-import express from 'express';
+import cors from 'cors';
 import 'dotenv/config';
-import path from 'path'; 
-import { fileURLToPath } from 'url';
-import cors from 'cors'; 
+import express from 'express';
 import session from 'express-session';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import passport from './config/passport.js';
 
 // Import Routes
-import authRoutes from './modules/auth/auth.routes.js';
-import adminRoutes from './modules/admin/admin.routes.js';
-import shopRoutes from './modules/shop/shop.routes.js';
-import productRoutes from './modules/product/product.routes.js';
-import rentalRoutes from './modules/rental/rental.routes.js';
-import paymentRoutes from './modules/payment/payment.routes.js';
-import chatRoutes from './modules/chat/chat.Routes.js';
-import moneyRoutes from './modules/money/money.routes.js';
-import autoRefundRoutes from "./modules/Interval/setInterval.route.js";
 import { processAutoRefunds } from "./modules/Interval/setInterval.controller.js";
+import autoRefundRoutes from "./modules/Interval/setInterval.route.js";
 import reviewRoutes from "./modules/Review/review.route.js";
 import addressRoutes from "./modules/address/address.routes.js";
+import adminRoutes from './modules/admin/admin.routes.js';
+import authRoutes from './modules/auth/auth.routes.js';
+import chatRoutes from './modules/chat/chat.Routes.js';
+import moneyRoutes from './modules/money/money.routes.js';
+import paymentRoutes from './modules/payment/payment.routes.js';
+import productRoutes from './modules/product/product.routes.js';
+import rentalRoutes from './modules/rental/rental.routes.js';
+import shopRoutes from './modules/shop/shop.routes.js';
 
 const app = express();
 
@@ -40,8 +40,9 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// app.use(express.json());
+// app.use(express.urlencoded({ extended: true }));
+
 
 // Middleware สำหรับ Log Request
 app.use((req, res, next) => {
