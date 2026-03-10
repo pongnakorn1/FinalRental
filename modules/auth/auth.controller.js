@@ -1,12 +1,11 @@
-import 'dotenv/config';
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+import 'dotenv/config';
 import admin from 'firebase-admin';
-import pool from "../../config/db.js";
-import fs from 'fs';
+import jwt from "jsonwebtoken";
 import path from 'path';
+import pool from "../../config/db.js";
 
-import vision from '@google-cloud/vision'
+import vision from '@google-cloud/vision';
 
 // =============================
 // 🔥 Firebase Admin
@@ -378,6 +377,32 @@ export const getMyProfile = async (req, res) => {
         res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลโปรไฟล์" });
     }
 };
+
+// 📌 ดึงข้อมูลผู้ใช้อื่น (สำหรับแชท)
+export const getUserById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(
+            `SELECT id, full_name, profile_picture 
+             FROM users 
+             WHERE id = $1`,
+            [id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: "ไม่พบข้อมูลผู้ใช้งาน" });
+        }
+
+        res.json({
+            success: true,
+            user: result.rows[0]
+        });
+    } catch (err) {
+        console.error("Get User By ID Error:", err);
+        res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้งาน" });
+    }
+};
+
 // ขั้นตอนที่ 1: ตรวจสอบตัวตน (Verify User)
 // เรียกใช้เมื่อกดปุ่ม "รีเซ็ทรหัสผ่าน" หน้าแรก
 export const verifyUserBeforeReset = async (req, res) => {

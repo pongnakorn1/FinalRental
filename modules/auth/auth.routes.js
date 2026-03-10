@@ -1,21 +1,22 @@
 import express from 'express';
-import passport from 'passport'; 
-import { 
-    register, 
-    login, 
-    uploadKYC, 
-    socialLogin, 
-    extractIDNumber, 
-    getMyProfile, 
-    updateProfile, 
-    verifyUserBeforeReset,     // <--- เพิ่มตัวนี้
-    submitPasswordResetRequest // <--- เพิ่มตัวนี้
-} from './auth.controller.js';
-import { authenticateToken } from '../../middleware/auth.middleware.js'; 
-import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
-import { uploadProfile } from "../../middleware/multer.config.js"; // ตัวอย่าง path
+import passport from 'passport';
 import path from 'path';
+import { authenticateToken } from '../../middleware/auth.middleware.js';
+import { uploadProfile } from "../../middleware/multer.config.js"; // ตัวอย่าง path
+import {
+    extractIDNumber,
+    getMyProfile,
+    getUserById,
+    login,
+    register,
+    socialLogin,
+    submitPasswordResetRequest,
+    updateProfile,
+    uploadKYC,
+    verifyUserBeforeReset
+} from './auth.controller.js';
+import { requestOTP, verifyOTP } from './otp.controller.js';
 
 const router = express.Router(); 
 
@@ -105,6 +106,9 @@ router.post('/upload-kyc', authenticateToken, upload.fields([
 
 // 📌 ดูข้อมูลตัวเอง (ใช้ Token)
 router.get('/me', authenticateToken, getMyProfile);
+
+// 📌 ดูข้อมูลผู้ใช้อื่น (ไม่ต้องใช้ Token)
+router.get('/user/:id', getUserById);
 
 
 
