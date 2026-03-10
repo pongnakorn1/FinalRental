@@ -154,10 +154,11 @@ export const updateRentalStatus = async (req, res) => {
                     return res.status(400).json({ message: "Status must be pending" });
                 }
                 // 1.3 อัปเดตสถานะและเวลาที่ยอมรับ (เพื่อเริ่มนับ 24 ชม.)
-                nextStatus = 'approved';
-                await client.query(`UPDATE bookings SET status = $1, approved_at = NOW() WHERE id = $2`, [nextStatus, id]);
-                break;
-
+                nextStatus = 'waiting_payment'; 
+                await client.query(
+                    `UPDATE bookings SET status = $1, approved_at = NOW() WHERE id = $2`, 
+                    [nextStatus, id]
+                );
             // ==========================================
             // 2. ผู้เช่าแจ้งชำระเงิน (PAY)
             // ==========================================
