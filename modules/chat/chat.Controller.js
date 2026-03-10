@@ -58,7 +58,7 @@ const chatController = {
                     lm.message as lastMessage,
                     lm.created_at as lastMessageTime,
                     u.full_name as otherUserName,
-                    u.profile_img as otherUserAvatar,
+                    u.profile_picture as otherUserAvatar,
                     u.id as otherUserId
                 FROM LatestMessages lm
                 JOIN public.users u ON (
@@ -69,6 +69,7 @@ const chatController = {
                 ORDER BY lm.created_at DESC`,
                 [`chat_${userId}_%`, `%_${userId}`, userId]
             );
+
             
             res.json({ success: true, data: result.rows });
         } catch (error) {
