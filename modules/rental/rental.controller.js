@@ -198,7 +198,14 @@ export const updateRentalStatus = async (req, res) => {
                 break;
 
             case 'verify':
+                if (booking.status === 'completed') {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ message: "รายการนี้เสร็จสมบูรณ์แล้ว" });
+                }
                 nextStatus = 'completed';
+                // ✅ 1. คืนสต็อกสินค้าเมื่อได้รับของคืนเสร็จสิ้น
+                await client.query(`UPDATE products SET quantity = quantity + $1 WHERE id = $2`, [booking.quantity, booking.product_id]);
+                // ✅ 2. อัปเดตสถานะเป็นสำเร็จ
                 await client.query(`UPDATE bookings SET status = $1 WHERE id = $2`, [nextStatus, id]);
                 break;
 
@@ -208,9 +215,18 @@ export const updateRentalStatus = async (req, res) => {
                     await client.query("ROLLBACK");
                     return res.status(403).json({ message: "Unauthorized" });
                 }
+                if (booking.status === 'rejected') {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ message: "รายการนี้ถูกปฏิเสธไปแล้ว" });
+                }
                 nextStatus = 'rejected';
+                // ✅ ถ้าถูกตัดสต็อกไปแล้ว (สถานะคือ waiting_payment) ให้คืนสต็อกด้วย
+                if (booking.status === 'waiting_payment' || booking.status === 'approved') {
+                    await client.query(`UPDATE products SET quantity = quantity + $1 WHERE id = $2`, [booking.quantity, booking.product_id]);
+                }
                 await client.query(`UPDATE bookings SET status = $1 WHERE id = $2`, [nextStatus, id]);
                 break;
+
 
             default:
                 await client.query("ROLLBACK");
