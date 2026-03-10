@@ -1,12 +1,16 @@
     import express from 'express';
     // ตรวจสอบชื่อไฟล์ให้ตรงกับที่คุณสร้าง (แนะนำให้ใช้ chatController.js ตัวเล็กทั้งหมดถ้าเป็นไปได้)
-    import chatController from './chat.Controller.js'; 
+    import { uploadChat } from '../../middleware/multer.config.js';
+import chatController from './chat.Controller.js';
 
     const router = express.Router();
 
     // 1. ส่งข้อความใหม่
     // URL: POST http://localhost:3000/api/chat/send
     router.post('/send', chatController.sendMessage);
+
+    // 🆕 อัปโหลดรูปภาพในแชท
+    router.post('/upload-image', uploadChat.single('image'), chatController.uploadChatImage);
 
     // 2. ดึงประวัติแชทตาม room_id
     // URL: GET http://localhost:3000/api/chat/history/:room_id

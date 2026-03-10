@@ -42,6 +42,26 @@ export const uploadDamage = multer({
   limits: { fileSize: 5 * 1024 * 1024 }
 });
 
+// 💬 ตั้งค่าโฟลเดอร์สำหรับเก็บรูปในแชท
+const storageChat = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = 'uploads/chat/';
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'chat-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+export const uploadChat = multer({
+  storage: storageChat,
+  limits: { fileSize: 5 * 1024 * 1024 }
+});
+
 // สร้างตัวแปร uploadProfile เพื่อให้ auth.routes.js ดึงไปใช้ได้
 export const uploadProfile = multer({ 
   storage: storageProfile,

@@ -1,13 +1,25 @@
 import pool from '../../pool.js';
 
+// ✅ เพิ่มฟังก์ชันตรวจสอบและอัปเกรด Schema อัตโนมัติ (เผื่อยังไม่มีคอลัมน์ image_url)
+const ensureSchema = async () => {
+    try {
+        await pool.query(`
+            ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS image_url TEXT;
+        `);
+    } catch (e) {
+        console.error('Schema Update error (messages):', e);
+    }
+};
+ensureSchema();
+
 const chatController = {
     // 1. ส่งข้อความใหม่
     sendMessage: async (req, res) => {
-        const { room_id, sender_id, message } = req.body;
+        const { room_id, sender_id, message, image_url } = req.body;
         try {
             const result = await pool.query(
-                'INSERT INTO public.messages (room_id, sender_id, message) VALUES ($1, $2, $3) RETURNING id',
-                [room_id, sender_id, message]
+                'INSERT INTO public.messages (room_id, sender_id, message, image_url) VALUES ($1, $2, $3, $4) RETURNING id',
+                [room_id, sender_id, message || null, image_url || null]
             );
             res.status(201).json({ 
                 success: true, 
@@ -15,6 +27,20 @@ const chatController = {
             });
         } catch (error) {
             console.error('Send Message Error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    // 🆕 อัปโหลดรูปภาพแชท
+    uploadChatImage: async (req, res) => {
+        try {
+            if (!req.file) {
+                return res.status(400).json({ success: false, message: 'กรุณาอัปโหลดรูปภาพ' });
+            }
+            const imageUrl = `/uploads/chat/${req.file.filename}`;
+            res.json({ success: true, imageUrl });
+        } catch (error) {
+            console.error('Upload Chat Image Error:', error);
             res.status(500).json({ success: false, error: error.message });
         }
     },
@@ -47,6 +73,7 @@ const chatController = {
                     SELECT 
                         room_id,
                         message,
+                        image_url,
                         sender_id,
                         created_at,
                         ROW_NUMBER() OVER(PARTITION BY room_id ORDER BY created_at DESC) as rn
@@ -62,6 +89,7 @@ const chatController = {
                 SELECT 
                     lm.room_id,
                     lm.message as "lastMessage",
+                    lm.image_url as "lastImageUrl",
                     lm.created_at as "lastMessageTime",
                     u.full_name as "otherUserName",
                     u.profile_picture as "otherUserAvatar",
