@@ -202,6 +202,16 @@ export const updateRentalStatus = async (req, res) => {
                 await client.query(`UPDATE bookings SET status = $1 WHERE id = $2`, [nextStatus, id]);
                 break;
 
+            case 'reject':
+            case 'rejected':
+                if (booking.owner_id !== userId) {
+                    await client.query("ROLLBACK");
+                    return res.status(403).json({ message: "Unauthorized" });
+                }
+                nextStatus = 'rejected';
+                await client.query(`UPDATE bookings SET status = $1 WHERE id = $2`, [nextStatus, id]);
+                break;
+
             default:
                 await client.query("ROLLBACK");
                 return res.status(400).json({ message: "Invalid action" });
