@@ -112,8 +112,6 @@ const chatController = {
         }
     },
 
-
-
     // 4. ดึงข้อมูลสรุปการจองสำหรับหัวแชท
     getBookingSummary: async (req, res) => {
         const { room_id } = req.params;
