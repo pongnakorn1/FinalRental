@@ -1,6 +1,6 @@
+import fs from 'fs'; // 🟢 Import มาแล้ว ต้องเอามาใช้ด้วยครับ
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs'; // 🟢 Import มาแล้ว ต้องเอามาใช้ด้วยครับ
 
 // ตั้งค่าโฟลเดอร์สำหรับเก็บรูปโปรไฟล์
 const storageProfile = multer.diskStorage({
@@ -18,6 +18,28 @@ const storageProfile = multer.diskStorage({
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
     cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
   }
+});
+
+// 📸 ตั้งค่าโฟลเดอร์สำหรับเก็บรูปแจ้งสินค้าเสียหาย
+const storageDamage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = 'uploads/damages/';
+    
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    
+    cb(null, dir); 
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'damage-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+export const uploadDamage = multer({ 
+  storage: storageDamage,
+  limits: { fileSize: 5 * 1024 * 1024 }
 });
 
 // สร้างตัวแปร uploadProfile เพื่อให้ auth.routes.js ดึงไปใช้ได้

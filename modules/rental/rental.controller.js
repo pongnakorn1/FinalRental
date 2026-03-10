@@ -281,3 +281,76 @@ export const getOwnerRentals = async (req, res) => {
         res.status(500).json({ message: "Fetch owner rentals failed" });
     }
 };
+
+// ดึงข้อมูลการจองเพียงรายการเดียว
+export const getRentalById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(
+            `SELECT b.*, p.name as product_name, p.images, p.price_per_day, s.name as shop_name 
+             FROM bookings b
+             JOIN products p ON b.product_id = p.id
+             JOIN shops s ON p.shop_id = s.id
+             WHERE b.id = $1`,
+            [id]
+        );
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({ success: false, message: "ไม่พบข้อมูลการจอง" });
+        }
+        
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ message: error.message });
+    }
+};
+
+// =============================================
+// 📌 6. REPORT DAMAGE (แจ้งสินค้าเสียหาย)
+// =============================================
+export const reportDamage = async (req, res) => {
+    const { id } = req.params;
+    const { description } = req.body;
+    const userId = req.user.id;
+  
+    if (!description && (!req.files || req.files.length === 0)) {
+        return res.status(400).json({ success: false, message: "กรุณาระบุรายละเอียดหรือแนบรูปภาพความเสียหาย" });
+    }
+  
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+        
+        // 1. ตรวจสอบว่า Booking นี้มีอยู่จริงและเป็นของ Renter หรือ Owner ที่เกี่ยวข้อง
+        const bookingCheck = await client.query("SELECT * FROM bookings WHERE id = $1", [id]);
+        if (bookingCheck.rowCount === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ success: false, message: "ไม่พบข้อมูลการจอง" });
+        }
+        
+        const booking = bookingCheck.rows[0];
+        
+        // กรองรูปถาพ (Multer จะส่งมาใน req.files ในกรณีที่เป็น folder uploads ในเครื่อง)
+        const images = req.files ? req.files.map(f => f.path.replace(/\\/g, '/')) : [];
+        
+        // 2. บันทึกลงตาราง disputes
+        const result = await client.query(
+            `INSERT INTO disputes (booking_id, raised_by, description, images, status)
+             VALUES ($1, $2, $3, $4, 'pending')
+             RETURNING *`,
+            [id, userId, description || "ไม่ได้ระบุรายละเอียด", JSON.stringify(images)]
+        );
+        
+        // 3. อัปเดตสถานะของ Booking เป็น disputed หรือคงไว้ แต่การมี Dispute จะทำให้ Admin เข้ามาดู
+        await client.query(`UPDATE bookings SET status = 'disputed' WHERE id = $1`, [id]);
+        
+        await client.query("COMMIT");
+        res.status(201).json({ success: true, message: "ส่งแจ้งปัญหาเรียบร้อย เจ้าหน้าที่จะดำเนินการตรวจสอบข้อมูล", dispute: result.rows[0] });
+    } catch (err) {
+        if (client) await client.query("ROLLBACK");
+        console.error("Report Damage Error:", err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการส่งข้อมูล: " + err.message });
+    } finally {
+        if (client) client.release();
+    }
+};

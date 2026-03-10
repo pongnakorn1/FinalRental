@@ -1,18 +1,24 @@
 import express from 'express';
 import {
-  createRental,
-  ownerApproveRental,
-  updateRentalStatus,
-  getWalletBalance,
-  getTransactionHistory,
-  getRenterRentals,
-  getOwnerRentals
+    createRental,
+    getOwnerRentals,
+    getRentalById,
+    getRenterRentals,
+    getTransactionHistory,
+    getWalletBalance,
+    ownerApproveRental,
+    reportDamage,
+    updateRentalStatus
 } from './rental.controller.js';
 
 import { authenticateToken } from '../../middleware/auth.middleware.js';
+import { uploadDamage } from '../../middleware/multer.config.js';
 import { requireVerified } from '../../middleware/verified.middleware.js';
 
 const router = express.Router();
+
+// ดูรายการเช่าแบบระบุ ID
+router.get('/:id', authenticateToken, getRentalById);
 
 // ==========================================
 // 📌 1. STATIC ROUTES (กลุ่มเส้นทางคงที่)
@@ -44,5 +50,8 @@ router.put('/:id/owner-approve', authenticateToken, requireVerified, ownerApprov
 
 // อัปเดตสถานะตามลำดับ (ship, receive, return, verify)
 router.put('/:id/status', authenticateToken, requireVerified, updateRentalStatus);
+
+// แจ้งสินค้าเสียหาย (ใหม่) - รองรับอัปโหลดรูปภาพ 3 รูป
+router.post('/:id/damage-report', authenticateToken, uploadDamage.array('images', 3), reportDamage);
 
 export default router;
