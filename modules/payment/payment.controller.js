@@ -41,12 +41,25 @@ export const createRental = async (req, res) => {
     const rent_fee = days * parseFloat(product.price_per_day) * quantity;
     const total_price = rent_fee + parseFloat(shipping_fee) + parseFloat(deposit_fee);
 
+    // สร้าง room_id สำหรับแชท
+    const id1 = parseInt(userId);
+    const id2 = parseInt(ownerId);
+    const sortedIds = [id1, id2].sort((a, b) => a - b);
+    const roomId = `chat_${sortedIds[0]}_${sortedIds[1]}`;
+
     const rentalResult = await client.query(
       `INSERT INTO bookings
-       (renter_id, product_id, quantity, start_date, end_date, rent_fee, shipping_fee, deposit_fee, total_price, status, days, owner_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending_owner', $10, $11)
+       (renter_id, product_id, quantity, start_date, end_date, rent_fee, shipping_fee, deposit_fee, total_price, status, days, owner_id, room_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending_owner', $10, $11, $12)
        RETURNING *`,
-      [userId, product_id, quantity, start_date, end_date, rent_fee, shipping_fee, deposit_fee, total_price, days, ownerId]
+      [userId, product_id, quantity, start_date, end_date, rent_fee, shipping_fee, deposit_fee, total_price, days, ownerId, roomId]
+    );
+
+    // ยิงข้อความแรกเข้าห้องแชทอัตโนมัติ
+    await client.query(
+      `INSERT INTO messages (room_id, sender_id, message)
+       VALUES ($1, $2, $3)`,
+      [roomId, userId, `สวัสดีครับ ผมสนใจเช่าสินค้า "${product.name || 'สินค้าของคุณ'}" ของคุณครับ`]
     );
 
     await client.query("COMMIT");
@@ -127,7 +140,7 @@ export const createPayment = async (req, res) => {
 export const getPendingVerifyBookings = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT b.*, u.full_name as renter_name 
+      `SELECT b.*, u.full_name as renter_name, u.email as renter_email, u.profile_img as renter_profile_img 
        FROM bookings b
        JOIN users u ON b.renter_id = u.id
        WHERE b.status = 'waiting_admin_verify'
@@ -144,7 +157,6 @@ export const getPendingVerifyBookings = async (req, res) => {
 
 // =============================================
 // 📌 3. OWNER APPROVE (เจ้าของกดยอมรับการเช่า)
-
 // =============================================
 export const ownerApproveRental = async (req, res) => {
   const client = await pool.connect();
@@ -155,9 +167,10 @@ export const ownerApproveRental = async (req, res) => {
     await client.query("BEGIN");
 
     const result = await client.query(
-      `SELECT r.*, p.quantity AS current_stock
+      `SELECT r.*, p.quantity AS current_stock, s.owner_id as shop_owner_id
        FROM bookings r
        JOIN products p ON r.product_id = p.id
+       JOIN shops s ON p.shop_id = s.id
        WHERE r.id = $1 FOR UPDATE`,
       [rentalId]
     );
@@ -168,10 +181,11 @@ export const ownerApproveRental = async (req, res) => {
     }
 
     const rental = result.rows[0];
-    if (rental.owner_id !== userId) {
+    if (rental.owner_id !== userId && rental.shop_owner_id !== userId) {
       await client.query("ROLLBACK");
       return res.status(403).json({ message: "Unauthorized" });
     }
+
 
     // หักสต็อกและเปลี่ยนสถานะเป็น waiting_payment
     await client.query(`UPDATE products SET quantity = quantity - $1 WHERE id = $2`, [rental.quantity, rental.product_id]);

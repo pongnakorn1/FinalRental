@@ -37,68 +37,76 @@ const chatController = {
         }
     },
 
-    // 3. ดึงรายการแชทของผู้ใช้
+    // 3. ดึงรายการแชทของผู้ใช้ (Inbox)
     getChatList: async (req, res) => {
         const { userId } = req.params;
         try {
+            // ดึงข้อความล่าสุดจากแต่ละห้องที่ผู้ใช้มีส่วนร่วม
             const result = await pool.query(
-                `SELECT DISTINCT ON (m.room_id) 
-                    m.id, 
-                    m.room_id, 
-                    m.message, 
-                    m.created_at,
-                    u.full_name AS partner_name,
-                    u.profile_picture AS partner_avatar,
-                    u.id AS partner_id
-                 FROM public.messages m
-                 JOIN public.users u ON u.id = (
-                    CASE 
-                        WHEN m.sender_id = $3 THEN 
-                            CAST(REPLACE(REPLACE(m.room_id, 'chat_', ''), CONCAT($3, '_'), '') AS INTEGER)
-                        ELSE m.sender_id 
-                    END
-                 )
-                 WHERE m.room_id LIKE $1 OR m.room_id LIKE $2
-                 ORDER BY m.room_id, m.created_at DESC`,
-                [`%_${userId}`, `chat_${userId}_%`, userId]
+                `WITH LatestMessages AS (
+                    SELECT 
+                        room_id,
+                        message,
+                        sender_id,
+                        created_at,
+                        ROW_NUMBER() OVER(PARTITION BY room_id ORDER BY created_at DESC) as rn
+                    FROM public.messages
+                    WHERE room_id LIKE $1 OR room_id LIKE $2
+                )
+                SELECT 
+                    lm.room_id,
+                    lm.message as lastMessage,
+                    lm.created_at as lastMessageTime,
+                    u.full_name as otherUserName,
+                    u.profile_img as otherUserAvatar,
+                    u.id as otherUserId
+                FROM LatestMessages lm
+                JOIN public.users u ON (
+                    (lm.room_id LIKE 'chat_' || u.id || '_%') OR 
+                    (lm.room_id LIKE 'chat_%_' || u.id)
+                )
+                WHERE lm.rn = 1 AND u.id != $3
+                ORDER BY lm.created_at DESC`,
+                [`chat_${userId}_%`, `%_${userId}`, userId]
             );
             
-            const sortedList = result.rows.sort((a, b) => b.created_at - a.created_at);
-            res.json({ success: true, data: sortedList });
+            res.json({ success: true, data: result.rows });
         } catch (error) {
             console.error('Get Chat List Error:', error);
             res.status(500).json({ success: false, error: error.message });
         }
-    }, // เพิ่มคอมม่าตรงนี้เพื่อเชื่อมฟังก์ชันถัดไป
+    },
 
-    // 4. ดึงข้อมูลสรุปการจองสำหรับหัวแชท (ย้ายเข้ามาอยู่ใน object แล้ว)
+    // 4. ดึงข้อมูลสรุปการจองสำหรับหัวแชท
     getBookingSummary: async (req, res) => {
-    const { room_id } = req.params;
-    try {
-        const result = await pool.query(
-            `SELECT 
-                b.id AS booking_id,
-                b.total_price,
-                b.status,
-                b.start_date,
-                b.end_date,
-                p.name AS product_name -- แก้เป็น p.name ให้ตรงกับ DB
-             FROM public.bookings b
-             JOIN public.products p ON b.product_id = p.id
-             WHERE b.room_id = $1 
-             ORDER BY b.created_at DESC LIMIT 1`,
-            [room_id]
-        );
+        const { room_id } = req.params;
+        try {
+            const result = await pool.query(
+                `SELECT 
+                    b.id AS booking_id,
+                    b.total_price,
+                    b.status,
+                    b.start_date,
+                    b.end_date,
+                    p.name AS product_name,
+                    p.images AS product_images
+                 FROM public.bookings b
+                 JOIN public.products p ON b.product_id = p.id
+                 WHERE b.room_id = $1 
+                 ORDER BY b.created_at DESC LIMIT 1`,
+                [room_id]
+            );
 
-        if (result.rows.length === 0) {
-            return res.json({ success: false, message: 'ไม่พบข้อมูลการจองสำหรับห้องนี้' });
+            if (result.rows.length === 0) {
+                return res.json({ success: false, message: 'ไม่พบข้อมูลการจองสำหรับห้องนี้' });
+            }
+
+            res.json({ success: true, data: result.rows[0] });
+        } catch (error) {
+            console.error('Get Summary Error:', error);
+            res.status(500).json({ success: false, error: error.message });
         }
-
-        res.json({ success: true, data: result.rows[0] });
-    } catch (error) {
-        console.error('Get Summary Error:', error);
-        res.status(500).json({ success: false, error: error.message });
     }
-}}
+};
 
 export default chatController;
