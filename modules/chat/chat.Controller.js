@@ -1,10 +1,11 @@
 import pool from '../../pool.js';
 
-// ✅ เพิ่มฟังก์ชันตรวจสอบและอัปเกรด Schema อัตโนมัติ (เผื่อยังไม่มีคอลัมน์ image_url)
+// ✅ เพิ่มฟังก์ชันตรวจสอบและอัปเกรด Schema อัตโนมัติ
 const ensureSchema = async () => {
     try {
         await pool.query(`
             ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS image_url TEXT;
+            ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;
         `);
     } catch (e) {
         console.error('Schema Update error (messages):', e);
@@ -18,7 +19,7 @@ const chatController = {
         const { room_id, sender_id, message, image_url } = req.body;
         try {
             const result = await pool.query(
-                'INSERT INTO public.messages (room_id, sender_id, message, image_url) VALUES ($1, $2, $3, $4) RETURNING id',
+                'INSERT INTO public.messages (room_id, sender_id, message, image_url, is_read) VALUES ($1, $2, $3, $4, FALSE) RETURNING id',
                 [room_id, sender_id, message || null, image_url || null]
             );
             res.status(201).json({ 
@@ -63,11 +64,27 @@ const chatController = {
         }
     },
 
+    // 🆕 ทำเครื่องหมายว่าอ่านแล้ว
+    markAsRead: async (req, res) => {
+        const { room_id, userId } = req.body;
+        try {
+            // อัปเดตข้อความที่คนอื่นส่งมาให้เรา (sender_id != userId) ให้เป็นอ่านแล้ว (is_read = true)
+            await pool.query(
+                'UPDATE public.messages SET is_read = TRUE WHERE room_id = $1 AND sender_id::text != $2::text AND is_read = FALSE',
+                [room_id, userId]
+            );
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Mark As Read Error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
     // 3. ดึงรายการแชทของผู้ใช้ (Inbox)
     getChatList: async (req, res) => {
         const { userId } = req.params;
         try {
-            // ดึงข้อความล่าสุดจากแต่ละห้องที่ผู้ใช้มีส่วนร่วม
+            // ดึงข้อความล่าสุด และนับจำนวนข้อความที่ยังไม่ได้อ่าน
             const result = await pool.query(
                 `WITH LatestMessages AS (
                     SELECT 
@@ -76,9 +93,18 @@ const chatController = {
                         image_url,
                         sender_id,
                         created_at,
+                        is_read,
                         ROW_NUMBER() OVER(PARTITION BY room_id ORDER BY created_at DESC) as rn
                     FROM public.messages
                     WHERE room_id LIKE 'chat\\_' || $1 || '\\_%' OR room_id LIKE '%\\_' || $1
+                ),
+                UnreadCounts AS (
+                    SELECT room_id, COUNT(*) as unread_count
+                    FROM public.messages
+                    WHERE (room_id LIKE 'chat\\_' || $1 || '\\_%' OR room_id LIKE '%\\_' || $1)
+                    AND sender_id::text != $1::text
+                    AND is_read = FALSE
+                    GROUP BY room_id
                 ),
                 RoomStats AS (
                     SELECT room_id, COUNT(*) as msg_count 
@@ -91,6 +117,9 @@ const chatController = {
                     lm.message as "lastMessage",
                     lm.image_url as "lastImageUrl",
                     lm.created_at as "lastMessageTime",
+                    lm.is_read as "lastIsRead",
+                    lm.sender_id as "lastSenderId",
+                    COALESCE(uc.unread_count, 0) as "unreadCount",
                     u.full_name as "otherUserName",
                     u.profile_picture as "otherUserAvatar",
                     u.id as "otherUserId"
@@ -100,6 +129,7 @@ const chatController = {
                     (lm.room_id LIKE '%\\_' || u.id)
                 )
                 JOIN RoomStats rs ON lm.room_id = rs.room_id
+                LEFT JOIN UnreadCounts uc ON lm.room_id = uc.room_id
                 WHERE lm.rn = 1 AND u.id != $1::integer AND rs.msg_count > 0
                 ORDER BY lm.created_at DESC`,
                 [userId]
@@ -111,6 +141,7 @@ const chatController = {
             res.status(500).json({ success: false, error: error.message });
         }
     },
+
 
     // 4. ดึงข้อมูลสรุปการจองสำหรับหัวแชท
     getBookingSummary: async (req, res) => {

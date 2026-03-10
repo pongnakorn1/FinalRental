@@ -11,6 +11,9 @@ router.post('/send', chatController.sendMessage);
 // 🆕 อัปโหลดรูปภาพในแชท
 router.post('/upload-image', uploadChat.single('image'), chatController.uploadChatImage);
 
+// 🆕 ทำเครื่องหมายว่าอ่านแล้ว
+router.post('/mark-read', chatController.markAsRead);
+
 // 2. ดึงประวัติแชทตาม room_id
 // URL: GET http://localhost:3000/api/chat/history/:room_id
 router.get('/history/:room_id', chatController.getChatHistory);
