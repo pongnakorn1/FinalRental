@@ -158,7 +158,7 @@ export const updateRentalStatus = async (req, res) => {
                 await client.query(
                     `UPDATE bookings SET status = $1, approved_at = NOW() WHERE id = $2`, 
                     [nextStatus, id]
-                );
+                );break;
             // ==========================================
             // 2. ผู้เช่าแจ้งชำระเงิน (PAY)
             // ==========================================
@@ -187,10 +187,9 @@ if (diffInHours > 1000) { // เปลี่ยนจาก 24 เป็น 1000
                     return res.status(400).json({ message: "กรุณาแนบรูปภาพใบสลิป" });
                 }
                 // 2.4 อัปเดตเป็นรอแอดมินตรวจสอบ
-                nextStatus = 'waiting_verification';
-                await client.query(`UPDATE bookings SET status = $1, payment_proof_url = $2 WHERE id = $3`, [nextStatus, proof_url, id]);
+                nextStatus = 'waiting_admin_verify';
+                await client.query(`UPDATE bookings SET status = $1, slip_image = $2, payment_status = 'pending' WHERE id = $3`, [nextStatus, proof_url, id]);
                 break;
-
             // ==========================================
             // 3. แอดมินยืนยันยอดเงิน (ADMIN VERIFY)
             // ==========================================
