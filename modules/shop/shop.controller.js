@@ -99,3 +99,23 @@ export const getShopById = async (req, res) => {
     });
   }
 };
+
+export const getMyShop = async (req, res) => {
+  try {
+    const ownerId = req.user.id;
+    const result = await pool.query(
+      "SELECT * FROM shops WHERE owner_id = $1",
+      [ownerId]
+    );
+
+    if (result.rowCount === 0) {
+      return res.status(200).json({ success: true, shop: null });
+    }
+
+    res.json({ success: true, shop: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: "Failed to fetch your shop" });
+  }
+};
+

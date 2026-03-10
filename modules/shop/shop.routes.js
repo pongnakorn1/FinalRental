@@ -1,8 +1,8 @@
-import express from 'express';
 import {
-  createShop,
-  getAllShops,
-  getShopById
+    createShop,
+    getAllShops,
+    getMyShop,
+    getShopById
 } from './shop.controller.js';
 
 import { authenticateToken } from '../../middleware/auth.middleware.js';
@@ -18,6 +18,7 @@ router.post(
 );
 
 router.get('/', getAllShops);
+router.get('/me', authenticateToken, getMyShop);
 router.get('/:id', getShopById);
 
 export default router;
