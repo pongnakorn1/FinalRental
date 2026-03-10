@@ -13,7 +13,7 @@ import reviewRoutes from "./modules/Review/review.route.js";
 import addressRoutes from "./modules/address/address.routes.js";
 import adminRoutes from './modules/admin/admin.routes.js';
 import authRoutes from './modules/auth/auth.routes.js';
-import chatRoutes from './modules/chat/chat.routes.js';
+import chatRoutes from './modules/chat/chat.Routes.js';
 import moneyRoutes from './modules/money/money.routes.js';
 import paymentRoutes from './modules/payment/payment.routes.js';
 import productRoutes from './modules/product/product.routes.js';

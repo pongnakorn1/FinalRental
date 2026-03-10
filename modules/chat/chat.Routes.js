@@ -1,6 +1,6 @@
 import express from 'express';
 import { uploadChat } from '../../middleware/multer.config.js';
-import chatController from './chat.controller.js';
+import chatController from './chat.Controller.js';
 
 const router = express.Router();
 
