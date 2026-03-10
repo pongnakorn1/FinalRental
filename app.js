@@ -108,12 +108,18 @@ setInterval(processAutoRefunds, ONE_HOUR);
 // 6. Centralized Error Handling
 // ==========================================
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
+  console.error("🔴 Server Error:", err);
+  res.status(err.status || 500).json({
     success: false,
-    message: 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
-    error: process.env.NODE_ENV === 'development' ? err.message : {}
+    message: err.message || 'เกิดข้อผิดพลาดภายในเซิร์ฟเวอร์',
+    error: {
+      message: err.message,
+      stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+      status: err.status
+    }
   });
 });
+
+
 
 export default app;

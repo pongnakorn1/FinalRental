@@ -67,6 +67,8 @@ export const createPayment = async (req, res) => {
   try {
     client = await pool.connect();
     const { rental_id, slip_image } = req.body;
+    console.log("📦 Payment Request:", { rental_id, slipLength: slip_image?.length, userId: req.user?.id });
+
 
     const userId = req.user.id;
 
