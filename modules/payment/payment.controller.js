@@ -122,7 +122,28 @@ export const createPayment = async (req, res) => {
 
 
 // =============================================
+// 📌 2.1 ดึงรายการสลิปที่รอการตรวจสอบ
+// =============================================
+export const getPendingVerifyBookings = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT b.*, u.full_name as renter_name 
+       FROM bookings b
+       JOIN users u ON b.renter_id = u.id
+       WHERE b.status = 'waiting_admin_verify'
+       ORDER BY b.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Fetch Pending Slips Error:", err);
+    res.status(500).json({ message: "Fetch pending slips failed" });
+  }
+};
+
+
+// =============================================
 // 📌 3. OWNER APPROVE (เจ้าของกดยอมรับการเช่า)
+
 // =============================================
 export const ownerApproveRental = async (req, res) => {
   const client = await pool.connect();

@@ -49,27 +49,55 @@ await pool.query(`
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
-    //rental
-await pool.query(`
-      CREATE TABLE IF NOT EXISTS products (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-  product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
-  start_date DATE NOT NULL,
-  end_date DATE NOT NULL,
-  total_price NUMERIC(10,2),
-  status VARCHAR(20) DEFAULT 'pending',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);`);
-//payment
-await pool.query(`
-      CREATE TABLE IF NOT EXISTS products (
-  id SERIAL PRIMARY KEY,
-  rental_id INTEGER REFERENCES rentals(id) ON DELETE CASCADE,
-  slip_image TEXT,
-  status VARCHAR(20) DEFAULT 'waiting_admin',
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);`);
+    // bookings (หรือเรียกอีกอย่างว่า rentals)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bookings (
+        id SERIAL PRIMARY KEY,
+        renter_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+        owner_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        days INTEGER,
+        quantity INTEGER DEFAULT 1,
+        rent_fee NUMERIC(10,2),
+        shipping_fee NUMERIC(10,2),
+        deposit_fee NUMERIC(10,2),
+        total_price NUMERIC(10,2),
+        status VARCHAR(50) DEFAULT 'pending_owner',
+        payment_status VARCHAR(50) DEFAULT 'pending',
+        slip_image TEXT,
+        approved_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // payments (ถ้าต้องการตารางแยกเก็บประวัติ)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS payments (
+        id SERIAL PRIMARY KEY,
+        booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+        amount NUMERIC(10,2),
+        slip_image TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // withdrawals (สำหรับถอนเงิน)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS withdrawals (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        bank_account_id INTEGER,
+        amount NUMERIC(10,2) NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending',
+        admin_note TEXT,
+        transfer_slip_url TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
 
 
     console.log("✅ Core tables created successfully");

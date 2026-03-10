@@ -1,19 +1,20 @@
 import express from "express";
 // 1. รวมการ Import จาก Controller ทั้งหมดไว้ที่เดียว
-import { 
-    viewPendingKYC, 
-    approveRejectKYC, 
-    suspendUser,
-    getForgotPasswordRequests, 
+import {
     adminResetPassword,
-    approvePasswordReset
+    approvePasswordReset,
+    approveRejectKYC,
+    getForgotPasswordRequests,
+    suspendUser,
+    viewPendingKYC
 } from './admin.controller.js';
 
-import { 
-    getAllDisputes, 
-    getDisputeById, 
-    decideDispute 
-} from './dispute.controller.js'; 
+
+import {
+    decideDispute,
+    getAllDisputes,
+    getDisputeById
+} from './dispute.controller.js';
 
 // 2. Import Middleware
 import { authenticateToken } from "../../middleware/auth.middleware.js";
@@ -63,5 +64,11 @@ router.get("/password-requests", getForgotPasswordRequests);
 router.post("/reset-user-password", adminResetPassword);
 
 router.patch("/password-requests/:id/approve", approvePasswordReset);
+
+// 3. ดูรายชื่อสมาชิกทั้งหมด
+router.get("/users", getAllUsers);
+
+// 4. ดูรายการธุรกรรมทั้งหมด
+router.get("/transactions", getAllTransactions);
 
 export default router;

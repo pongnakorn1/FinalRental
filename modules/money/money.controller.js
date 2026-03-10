@@ -50,7 +50,26 @@ const moneyController = {
     },
 
 
-approveWithdraw: async (req, res) => {
+    // ดึงรายการถอนเงินที่รอการอนุมัติ (Admin)
+    getPendingWithdrawals: async (req, res) => {
+        try {
+            const result = await pool.query(
+                `SELECT w.*, u.full_name, b.bank_name, b.account_number 
+                 FROM public.withdrawals w
+                 JOIN public.users u ON w.user_id = u.id
+                 JOIN public.bank_accounts b ON w.bank_account_id = b.id
+                 WHERE w.status = 'pending'
+                 ORDER BY w.created_at DESC`
+            );
+            res.json(result.rows);
+        } catch (error) {
+            console.error("Fetch Withdrawals Error:", error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    approveWithdraw: async (req, res) => {
+
     const { withdrawal_id, admin_note, transfer_slip_url } = req.body;
     try {
         // อัปเดตสถานะและใส่ข้อมูลหลักฐานการโอน
