@@ -42,8 +42,6 @@ const chatController = {
         const { userId } = req.params;
         try {
             // ดึงข้อความล่าสุดจากแต่ละห้องที่ผู้ใช้มีส่วนร่วม
-            // แก้ไข: ใช้ [\ ] เพื่อ escape _ ใน LIKE หรือใช้ regex
-            // และใช้ quote ใน Alias เพื่อรักษา CamelCase ให้ตรงกับ Frontend
             const result = await pool.query(
                 `WITH LatestMessages AS (
                     SELECT 
@@ -53,12 +51,12 @@ const chatController = {
                         created_at,
                         ROW_NUMBER() OVER(PARTITION BY room_id ORDER BY created_at DESC) as rn
                     FROM public.messages
-                    WHERE (room_id LIKE 'chat\\_' || $1 || '\\_%') OR (room_id LIKE '%\\_' || $1)
+                    WHERE room_id LIKE 'chat\\_' || $1 || '\\_%' OR room_id LIKE '%\\_' || $1
                 ),
                 RoomStats AS (
                     SELECT room_id, COUNT(*) as msg_count 
                     FROM public.messages 
-                    WHERE sender_id != '0'
+                    WHERE sender_id::text != '0'
                     GROUP BY room_id
                 )
                 SELECT 
@@ -74,7 +72,7 @@ const chatController = {
                     (lm.room_id LIKE '%\\_' || u.id)
                 )
                 JOIN RoomStats rs ON lm.room_id = rs.room_id
-                WHERE lm.rn = 1 AND u.id != $1 AND rs.msg_count > 0
+                WHERE lm.rn = 1 AND u.id != $1::integer AND rs.msg_count > 0
                 ORDER BY lm.created_at DESC`,
                 [userId]
             );
@@ -85,6 +83,7 @@ const chatController = {
             res.status(500).json({ success: false, error: error.message });
         }
     },
+
 
 
     // 4. ดึงข้อมูลสรุปการจองสำหรับหัวแชท
