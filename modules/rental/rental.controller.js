@@ -293,10 +293,24 @@ export const getTransactionHistory = async (req, res) => {
     try {
         const userId = req.user.id;
         const result = await pool.query(
-            'SELECT * FROM wallet_transactions WHERE user_id = $1 ORDER BY created_at DESC',
+            `SELECT 
+                wt.transaction_id as id,
+                wt.*, 
+                wt.transaction_type as type,
+                wt.created_at as timestamp,
+                u_renter.full_name as counterparty_name,
+                b.rent_fee,
+                b.shipping_fee,
+                p.name as product_name
+             FROM wallet_transactions wt
+             LEFT JOIN bookings b ON wt.booking_id = b.id
+             LEFT JOIN users u_renter ON b.renter_id = u_renter.id
+             LEFT JOIN products p ON b.product_id = p.id
+             WHERE wt.user_id = $1 
+             ORDER BY wt.created_at DESC`,
             [userId]
         );
-        res.json(result.rows);
+        res.json({ success: true, transactions: result.rows });
     } catch (error) {
         res.status(500).json({ message: error.message });
     }
