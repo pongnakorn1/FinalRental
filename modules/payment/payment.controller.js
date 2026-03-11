@@ -140,10 +140,10 @@ export const createPayment = async (req, res) => {
 export const getPendingVerifyBookings = async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT b.*, u.full_name as renter_name, u.email as renter_email, u.profile_img as renter_profile_img 
+      `SELECT b.*, u.full_name as renter_name, u.email as renter_email, u.profile_picture as renter_profile_img 
        FROM bookings b
-       JOIN users u ON b.renter_id = u.id
-       WHERE b.status = 'waiting_admin_verify'
+       LEFT JOIN users u ON b.renter_id = u.id
+       WHERE b.status = 'waiting_admin_verify' OR b.status = 'waiting_verification'
        ORDER BY b.created_at DESC`
     );
     // ส่งกลับเป็นรูปแบบ Object ที่มี success: true
