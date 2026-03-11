@@ -189,9 +189,9 @@ export const updateRentalStatus = async (req, res) => {
                 await client.query(`UPDATE bookings SET status = $1, proof_after_receiving = $2 WHERE id = $3`, [nextStatus, proof_url, id]);
                 
                 // ✅ 2. โอนเงินให้เจ้าของร้าน (ค่าเช่า + ค่าขนส่ง)
-                // ตรวจสอบว่าเคยโอนไปหรือยัง (ใช้ 1 แทน id เพื่อเลี่ยงปัญหาชื่อคอลัมน์)
+                // ตรวจสอบว่าเคยโอนไปหรือยัง (ปรับให้ตรงกับชื่อคอลัมน์ transaction_type)
                 const transferCheck = await client.query(
-                    `SELECT 1 FROM wallet_transactions WHERE booking_id = $1 AND type = 'payout' LIMIT 1`,
+                    `SELECT 1 FROM wallet_transactions WHERE booking_id = $1 AND transaction_type = 'payout' LIMIT 1`,
                     [id]
                 );
 
@@ -205,9 +205,9 @@ export const updateRentalStatus = async (req, res) => {
                             [payoutAmount, booking.owner_id]
                         );
 
-                        // บันทึกประวัติธุรกรรม
+                        // บันทึกประวัติธุรกรรม (ปรับให้ตรงกับชื่อคอลัมน์ transaction_type)
                         await client.query(
-                            `INSERT INTO wallet_transactions (user_id, booking_id, amount, type, description)
+                            `INSERT INTO wallet_transactions (user_id, booking_id, amount, transaction_type, description)
                              VALUES ($1, $2, $3, 'payout', $4)`,
                             [
                                 booking.owner_id, 
