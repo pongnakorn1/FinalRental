@@ -39,7 +39,17 @@ const storageDamage = multer.diskStorage({
 
 export const uploadDamage = multer({ 
   storage: storageDamage,
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: { fileSize: 50 * 1024 * 1024 }, // Increased to 50MB for video
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png|webp|mp4|mov|avi|mkv/; // Allow images and videos
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error("Error: อนุญาตไฟล์รูปภาพ (jpeg, jpg, png, webp) และวิดีโอ (mp4, mov, avi, mkv) เท่านั้น"));
+  }
 });
 
 // 💬 ตั้งค่าโฟลเดอร์สำหรับเก็บรูปในแชท
