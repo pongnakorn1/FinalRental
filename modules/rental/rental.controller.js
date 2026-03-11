@@ -196,7 +196,8 @@ export const updateRentalStatus = async (req, res) => {
                 );
 
                 if (transferCheck.rowCount === 0) {
-                    const payoutAmount = parseFloat(booking.rent_fee || 0) + parseFloat(booking.shipping_fee || 0);
+                    // ✅ หักค่าขนส่งออกตามคำขอ (โอนเฉพาะค่าเช่า)
+                    const payoutAmount = parseFloat(booking.rent_fee || 0);
                     
                     if (payoutAmount > 0) {
                         // เพิ่มเงินใน wallet ของเจ้าของ
