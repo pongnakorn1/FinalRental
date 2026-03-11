@@ -7,28 +7,20 @@ const createTables = async () => {
 await pool.query(`
   CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
-  full_name VARCHAR(100) NOT NULL,
+  full_name VARCHAR(50) UNIQUE NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   phone VARCHAR(20),
   address TEXT,
-  password TEXT, -- Nullable for social login users
-  
+  password TEXT NOT NULL,
+
   role VARCHAR(50) DEFAULT 'user',
-  
-  -- Social Login IDs
-  google_id VARCHAR(255) UNIQUE,
-  facebook_id VARCHAR(255) UNIQUE,
-  line_id VARCHAR(255) UNIQUE,
-  
-  profile_picture TEXT,
-  id_card_number VARCHAR(13),
+
   id_card_image TEXT,
   face_image TEXT,
-  
-  kyc_status VARCHAR(20) DEFAULT 'not_submitted',
-  is_suspended BOOLEAN DEFAULT false,
-  suspension_reason TEXT,
-  
+
+  verification_status VARCHAR(20) DEFAULT 'not_submitted',
+  is_verified BOOLEAN DEFAULT false,
+
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 `);

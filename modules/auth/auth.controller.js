@@ -261,22 +261,22 @@ export const socialLogin = async (req, res) => {
             { expiresIn: "1d" }
         );
 
-        // 5. Redirect กลับไปยัง Mobile App
-        // ใช้ CLIENT_URL จาก .env (เช่น finalrental://) เพื่อให้ App รับช่วงต่อได้
-        const frontendUrl = process.env.CLIENT_URL || 'finalrental://';
-        
-        // ตรวจสอบว่า URL มีเครื่องหมาย ? หรือยัง เพื่อใส่ parameter ให้ถูกต้อง
-        const redirectSeparator = frontendUrl.includes('?') ? '&' : '?';
-        const finalRedirectUrl = `${frontendUrl}${redirectSeparator}token=${token}`;
-        
-        console.log(`🚀 Social Login Success: Redirecting to ${finalRedirectUrl}`);
-        return res.redirect(finalRedirectUrl);
+        // 5. ส่ง Response
+        res.json({
+            success: true,
+            message: `Login with ${provider} success!`,
+            token: token,
+            user: {
+                id: user.id,
+                full_name: user.full_name,
+                email: user.email,
+                line_id: user.line_id
+            }
+        });
 
     } catch (err) {
         console.error("SOCIAL LOGIN ERROR:", err);
-        // กรณี Error ให้ Redirect กลับไปหน้า Login พร้อมแจ้ง error
-        const frontendUrl = process.env.CLIENT_URL || 'finalrental://';
-        return res.redirect(`${frontendUrl}${frontendUrl.includes('?') ? '&' : '?'}error=social_failed`);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 };
 
