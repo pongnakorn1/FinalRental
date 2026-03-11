@@ -423,15 +423,66 @@ export const verifyUserBeforeReset = async (req, res) => {
             });
         }
 
-        // ถ้าผ่าน ให้ส่ง userId กลับไป เพื่อให้หน้าบ้านใช้ส่งในขั้นตอนถัดไป
+        const userId = user.rows[0].id;
+        
+        // สร้าง Token พิเศษสำหรับรีเซ็ทรหัสผ่าน (อายุ 15 นาที)
+        const resetToken = jwt.sign(
+            { resetUserId: userId, type: 'password_reset' },
+            process.env.JWT_SECRET,
+            { expiresIn: '15m' }
+        );
+
         res.json({ 
             success: true, 
-            userId: user.rows[0].id,
+            resetToken,
             message: "ตรวจสอบข้อมูลสำเร็จ" 
         });
     } catch (err) {
         console.error("VERIFY ERROR:", err);
         res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการตรวจสอบข้อมูล" });
+    }
+};
+
+// ขั้นตอนที่ 2: ตั้งรหัสผ่านใหม่ (Automatic Reset)
+export const resetPassword = async (req, res) => {
+    try {
+        const { resetToken, newPassword } = req.body;
+
+        if (!resetToken || !newPassword) {
+            return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบถ้วน" });
+        }
+
+        // ตรวจสอบ Token
+        let decoded;
+        try {
+            decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+        } catch (tokenErr) {
+            return res.status(401).json({ 
+                success: false, 
+                message: tokenErr.name === 'TokenExpiredError' ? "Token หมดอายุ (เกิน 15 นาที)" : "Token ไม่ถูกต้อง" 
+            });
+        }
+
+        if (decoded.type !== 'password_reset' || !decoded.resetUserId) {
+            return res.status(401).json({ success: false, message: "Token ไม่ถูกต้อง" });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        
+        // อัปเดตรหัสผ่านลงตารางหลักทันที (Automatic)
+        await pool.query(
+            "UPDATE users SET password = $1 WHERE id = $2",
+            [hashedPassword, decoded.resetUserId]
+        );
+
+        res.json({ 
+            success: true, 
+            message: "เปลี่ยนรหัสผ่านสำเร็จเรียบร้อยแล้ว" 
+        });
+
+    } catch (err) {
+        console.error("RESET ERROR:", err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน" });
     }
 };
 

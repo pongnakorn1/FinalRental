@@ -10,8 +10,8 @@ import {
     getUserById,
     login,
     register,
+    resetPassword,
     socialLogin,
-    submitPasswordResetRequest,
     updateProfile,
     uploadKYC,
     verifyUserBeforeReset
@@ -115,8 +115,8 @@ router.get('/user/:id', getUserById);
 // ✅ อัปเดตโปรไฟล์ (เพิ่ม upload.single เพื่อรับรูปโปรไฟล์)
 router.patch('/update-profile', authenticateToken, uploadProfile.single('profile_picture'), updateProfile);
 
-// เปลี่ยน Route เป็น 2 จังหวะ
-router.post('/verify-reset-user', verifyUserBeforeReset); // สำหรับหน้าแรก
-router.post('/forgot-password-request', submitPasswordResetRequest); // สำหรับหน้าสอง
+// ✅ ระบบลืมรหัสผ่าน (แบบอัตโนมัติ 2 ขั้นตอน)
+router.post('/verify-reset-user', verifyUserBeforeReset); // ขั้นตอนที่ 1: ตรวจสอบข้อมูลเบอร์/อีเมล + บัตร ปชช.
+router.post('/reset-password', resetPassword);           // ขั้นตอนที่ 2: ตั้งรหัสผ่านใหม่ (ใช้ Reset Token)
 
 export default router;
