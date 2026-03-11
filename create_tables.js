@@ -20,6 +20,7 @@ await pool.query(`
 
   verification_status VARCHAR(20) DEFAULT 'not_submitted',
   is_verified BOOLEAN DEFAULT false,
+  wallet NUMERIC(15,2) DEFAULT 0.00,
 
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -99,6 +100,31 @@ await pool.query(`
     `);
 
 
+
+    // bank_accounts (สำหรับเก็บเลขบัญชีผู้ใช้)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bank_accounts (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        bank_name VARCHAR(100) NOT NULL,
+        account_number VARCHAR(50) NOT NULL,
+        account_name VARCHAR(150) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // wallet_transactions (สำหรับเก็บประวัติเงินเข้า-ออก)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS wallet_transactions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+        booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+        amount NUMERIC(15,2) NOT NULL,
+        type VARCHAR(20) NOT NULL, -- 'payout', 'withdrawal', 'refund'
+        description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
 
     console.log("✅ Core tables created successfully");
     process.exit();

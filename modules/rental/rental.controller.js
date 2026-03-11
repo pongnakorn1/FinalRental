@@ -185,7 +185,40 @@ export const updateRentalStatus = async (req, res) => {
 
             case 'receive':
                 nextStatus = 'received';
+                // ✅ 1. อัปเดตสถานะของ Booking
                 await client.query(`UPDATE bookings SET status = $1, proof_after_receiving = $2 WHERE id = $3`, [nextStatus, proof_url, id]);
+                
+                // ✅ 2. โอนเงินให้เจ้าของร้าน (ค่าเช่า + ค่าขนส่ง)
+                // ตรวจสอบว่าเคยโอนไปหรือยัง (ป้องกันการโอนซ้ำถ้ามีการกดยืนยันซ้ำ)
+                const transferCheck = await client.query(
+                    `SELECT id FROM wallet_transactions WHERE booking_id = $1 AND type = 'payout'`,
+                    [id]
+                );
+
+                if (transferCheck.rowCount === 0) {
+                    const payoutAmount = parseFloat(booking.rent_fee || 0) + parseFloat(booking.shipping_fee || 0);
+                    
+                    if (payoutAmount > 0) {
+                        // เพิ่มเงินใน wallet ของเจ้าของ
+                        await client.query(
+                            `UPDATE users SET wallet = COALESCE(wallet, 0) + $1 WHERE id = $2`,
+                            [payoutAmount, booking.owner_id]
+                        );
+
+                        // บันทึกประวัติธุรกรรม
+                        await client.query(
+                            `INSERT INTO wallet_transactions (user_id, booking_id, amount, type, description)
+                             VALUES ($1, $2, $3, 'payout', $4)`,
+                            [
+                                booking.owner_id, 
+                                id, 
+                                payoutAmount, 
+                                'payout', 
+                                `รายได้จากการปล่อยเช่ารายการ #${id}`
+                            ]
+                        );
+                    }
+                }
                 break;
 
             case 'return':
@@ -248,7 +281,8 @@ export const updateRentalStatus = async (req, res) => {
 export const getWalletBalance = async (req, res) => {
     try {
         const userId = req.user.id;
-        const result = await pool.query('SELECT balance FROM wallets WHERE user_id = $1', [userId]);
+        // ปรับให้ใช้คอลัมน์ wallet ในตาราง users เพื่อให้ตรงกับ money.controller.js
+        const result = await pool.query('SELECT wallet as balance FROM users WHERE id = $1', [userId]);
         res.json(result.rows[0] || { balance: 0 });
     } catch (error) {
         res.status(500).json({ message: error.message });
