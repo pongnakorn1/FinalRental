@@ -189,9 +189,9 @@ export const updateRentalStatus = async (req, res) => {
                 await client.query(`UPDATE bookings SET status = $1, proof_after_receiving = $2 WHERE id = $3`, [nextStatus, proof_url, id]);
                 
                 // ✅ 2. โอนเงินให้เจ้าของร้าน (ค่าเช่า + ค่าขนส่ง)
-                // ตรวจสอบว่าเคยโอนไปหรือยัง (ป้องกันการโอนซ้ำถ้ามีการกดยืนยันซ้ำ)
+                // ตรวจสอบว่าเคยโอนไปหรือยัง (ใช้ 1 แทน id เพื่อเลี่ยงปัญหาชื่อคอลัมน์)
                 const transferCheck = await client.query(
-                    `SELECT id FROM wallet_transactions WHERE booking_id = $1 AND type = 'payout'`,
+                    `SELECT 1 FROM wallet_transactions WHERE booking_id = $1 AND type = 'payout' LIMIT 1`,
                     [id]
                 );
 
