@@ -6,6 +6,14 @@ const ensureSchema = async () => {
         await pool.query(`
             ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS image_url TEXT;
             ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS is_read BOOLEAN DEFAULT FALSE;
+            
+            CREATE TABLE IF NOT EXISTS public.chat_hides (
+                id SERIAL PRIMARY KEY,
+                room_id VARCHAR(255) NOT NULL,
+                user_id INTEGER NOT NULL,
+                hidden_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(room_id, user_id)
+            );
         `);
     } catch (e) {
         console.error('Schema Update error (messages):', e);
@@ -49,10 +57,20 @@ const chatController = {
     // 2. ดึงประวัติแชทตาม room_id
     getChatHistory: async (req, res) => {
         const { room_id } = req.params;
+        const userId = req.user ? req.user.id : null; // ดึงจาก Token ถ้ามี
         try {
+            // ดึงเวลาที่ซ่อนล่าลุด
+            let hideTime = '1970-01-01 00:00:00';
+            if (userId) {
+                const hideRes = await pool.query('SELECT hidden_at FROM public.chat_hides WHERE room_id = $1 AND user_id = $2', [room_id, userId]);
+                if (hideRes.rowCount > 0) {
+                    hideTime = hideRes.rows[0].hidden_at;
+                }
+            }
+
             const result = await pool.query(
-                'SELECT * FROM public.messages WHERE room_id = $1 ORDER BY created_at ASC',
-                [room_id]
+                'SELECT * FROM public.messages WHERE room_id = $1 AND created_at > $2 ORDER BY created_at ASC',
+                [room_id, hideTime]
             );
             res.json({ 
                 success: true, 
@@ -85,32 +103,44 @@ const chatController = {
         const { userId } = req.params;
         try {
             // ดึงข้อความล่าสุด และนับจำนวนข้อความที่ยังไม่ได้อ่าน
+            // กรองออกถ้าห้องนั้นถูกซ่อน (hidden_at) และไม่มีข้อความใหม่กว่า hidden_at
             const result = await pool.query(
-                `WITH LatestMessages AS (
+                `WITH UserHides AS (
+                    SELECT room_id, hidden_at 
+                    FROM public.chat_hides 
+                    WHERE user_id = $1
+                ),
+                LatestMessages AS (
                     SELECT 
-                        room_id,
-                        message,
-                        image_url,
-                        sender_id,
-                        created_at,
-                        is_read,
-                        ROW_NUMBER() OVER(PARTITION BY room_id ORDER BY created_at DESC) as rn
-                    FROM public.messages
-                    WHERE room_id LIKE 'chat\\_' || $1 || '\\_%' OR room_id LIKE '%\\_' || $1
+                        m.room_id,
+                        m.message,
+                        m.image_url,
+                        m.sender_id,
+                        m.created_at,
+                        m.is_read,
+                        ROW_NUMBER() OVER(PARTITION BY m.room_id ORDER BY m.created_at DESC) as rn
+                    FROM public.messages m
+                    LEFT JOIN UserHides uh ON m.room_id = uh.room_id
+                    WHERE (m.room_id LIKE 'chat\\_' || $1 || '\\_%' OR m.room_id LIKE '%\\_' || $1)
+                    AND (uh.hidden_at IS NULL OR m.created_at > uh.hidden_at)
                 ),
                 UnreadCounts AS (
-                    SELECT room_id, COUNT(*) as unread_count
-                    FROM public.messages
-                    WHERE (room_id LIKE 'chat\\_' || $1 || '\\_%' OR room_id LIKE '%\\_' || $1)
-                    AND sender_id::text != $1::text
-                    AND is_read = FALSE
-                    GROUP BY room_id
+                    SELECT m.room_id, COUNT(*) as unread_count
+                    FROM public.messages m
+                    LEFT JOIN UserHides uh ON m.room_id = uh.room_id
+                    WHERE (m.room_id LIKE 'chat\\_' || $1 || '\\_%' OR m.room_id LIKE '%\\_' || $1)
+                    AND m.sender_id::text != $1::text
+                    AND m.is_read = FALSE
+                    AND (uh.hidden_at IS NULL OR m.created_at > uh.hidden_at)
+                    GROUP BY m.room_id
                 ),
                 RoomStats AS (
-                    SELECT room_id, COUNT(*) as msg_count 
-                    FROM public.messages 
-                    WHERE sender_id::text != '0'
-                    GROUP BY room_id
+                    SELECT m.room_id, COUNT(*) as msg_count 
+                    FROM public.messages m
+                    LEFT JOIN UserHides uh ON m.room_id = uh.room_id
+                    WHERE m.sender_id::text != '0'
+                    AND (uh.hidden_at IS NULL OR m.created_at > uh.hidden_at)
+                    GROUP BY m.room_id
                 )
                 SELECT 
                     lm.room_id,
@@ -138,6 +168,24 @@ const chatController = {
             res.json({ success: true, data: result.rows });
         } catch (error) {
             console.error('Get Chat List Error:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    },
+
+    // 🆕 ซ่อนแชท (ลบฝั่งตัวเอง)
+    hideChat: async (req, res) => {
+        const { room_id, userId } = req.body;
+        try {
+            await pool.query(
+                `INSERT INTO public.chat_hides (room_id, user_id, hidden_at)
+                 VALUES ($1, $2, CURRENT_TIMESTAMP)
+                 ON CONFLICT (room_id, user_id) 
+                 DO UPDATE SET hidden_at = CURRENT_TIMESTAMP`,
+                [room_id, userId]
+            );
+            res.json({ success: true, message: 'ซ่อนการสนทนาเรียบร้อย' });
+        } catch (error) {
+            console.error('Hide Chat Error:', error);
             res.status(500).json({ success: false, error: error.message });
         }
     },
