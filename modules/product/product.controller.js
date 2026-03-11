@@ -299,9 +299,9 @@ export const deleteProduct = async (req, res) => {
       });
     }
 
-    // 🔒 เช็คว่ามี rental อยู่ไหม
+    // 🔒 เช็คว่ามี rental อยู่ไหม (ตารางชื่อ bookings)
     const rentalCheck = await client.query(
-      `SELECT id FROM rentals WHERE product_id = $1`,
+      `SELECT id FROM bookings WHERE product_id = $1`,
       [productId]
     );
 
