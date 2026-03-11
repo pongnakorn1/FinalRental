@@ -103,7 +103,7 @@ export const getAllProducts = async (req, res) => {
          s.name AS shop_name, s.owner_id
        FROM products p
        JOIN shops s ON p.shop_id = s.id
-       WHERE p.is_active = TRUE  -- ดึงเฉพาะที่เปิดใช้งาน
+       WHERE p.is_active = TRUE AND p.is_deleted = FALSE  -- ดึงเฉพาะที่เปิดใช้งานและยังไม่ถูกลบ
        ORDER BY p.id DESC`
     );
 
@@ -127,7 +127,7 @@ export const getProductsByShop = async (req, res) => {
          s.owner_id
        FROM products p
        JOIN shops s ON p.shop_id = s.id
-       WHERE p.shop_id = $1 AND p.is_active = TRUE
+       WHERE p.shop_id = $1 AND p.is_active = TRUE AND p.is_deleted = FALSE
        ORDER BY p.id DESC`,
       [shopId]
     );
@@ -151,7 +151,7 @@ export const getProductsByUserId = async (req, res) => {
             `SELECT p.*, s.name AS shop_name 
              FROM products p
              JOIN shops s ON p.shop_id = s.id
-             WHERE s.owner_id = $1 AND p.is_active = TRUE
+             WHERE s.owner_id = $1 AND p.is_active = TRUE AND p.is_deleted = FALSE
              ORDER BY p.id DESC`,
             [targetUserId]
         );
@@ -178,7 +178,7 @@ export const getMyProducts = async (req, res) => {
             `SELECT p.*, s.name AS shop_name 
              FROM products p
              JOIN shops s ON p.shop_id = s.id
-             WHERE s.owner_id = $1
+             WHERE s.owner_id = $1 AND p.is_deleted = FALSE
              ORDER BY p.id DESC`, 
             [userId]
         );
@@ -299,28 +299,18 @@ export const deleteProduct = async (req, res) => {
       });
     }
 
-    // 🔒 เช็คว่ามี rental อยู่ไหม (ตารางชื่อ bookings)
-    const rentalCheck = await client.query(
-      `SELECT id FROM bookings WHERE product_id = $1`,
-      [productId]
-    );
 
-    if (rentalCheck.rowCount > 0) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({
-        message: "Cannot delete product with rentals"
-      });
-    }
-
+    // 🗑️ ทำ Soft Delete (แทนการลบทิ้งจริง)
     await client.query(
-      `DELETE FROM products WHERE id = $1`,
+      `UPDATE products SET is_deleted = TRUE, is_active = FALSE WHERE id = $1`,
       [productId]
     );
 
     await client.query("COMMIT");
 
     res.json({
-      message: "Product deleted successfully"
+      success: true,
+      message: "ลบสินค้าเรียบร้อยแล้ว (Soft Delete)"
     });
 
   } catch (err) {
@@ -352,6 +342,7 @@ export const toggleProductStatus = async (req, res) => {
              WHERE p.shop_id = s.id 
              AND p.id = $1 
              AND s.owner_id = $2 
+             AND p.is_deleted = FALSE 
              RETURNING p.is_active`,
             [id, userId]
         );
