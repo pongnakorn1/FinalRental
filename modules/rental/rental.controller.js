@@ -208,7 +208,7 @@ export const updateRentalStatus = async (req, res) => {
                         // บันทึกประวัติธุรกรรม (ปรับให้ตรงกับชื่อคอลัมน์ transaction_type)
                         await client.query(
                             `INSERT INTO wallet_transactions (user_id, booking_id, amount, transaction_type, description)
-                             VALUES ($1, $2, $3, 'payout', $4)`,
+                             VALUES ($1, $2, $3, $4, $5)`,
                             [
                                 booking.owner_id, 
                                 id, 
