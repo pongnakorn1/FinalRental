@@ -26,7 +26,7 @@ const moneyController = {
         }
 
         try {
-            // 1. เช็คยอดเงินใน Wallet (ตาราง users คอลัมน์ wallet)
+            // 1. เช็คยอดเงินใน Wallet
             const user = await pool.query('SELECT wallet FROM public.users WHERE id = $1', [userId]);
             if (user.rows.length === 0) {
                 return res.status(404).json({ success: false, message: 'ไม่พบข้อมูลผู้ใช้' });
@@ -37,7 +37,7 @@ const moneyController = {
                 return res.json({ success: false, message: 'ยอดเงินไม่เพียงพอสำหรับการถอน' });
             }
 
-            // 2. ถ้าไม่มี bank_account_id แต่มีข้อมูลบัญชี ให้สร้างหรือผูกบัญชีอัตโนมัติ (Method 2)
+            // 2. จัดการบัญชีธนาคาร (ถ้าไม่ได้ส่ง ID มาแต่ส่งข้อมูลบัญชีมา)
             if (!bank_account_id && account_number) {
                 const existingBank = await pool.query(
                     'SELECT id FROM public.bank_accounts WHERE user_id = $1 AND account_number = $2',
@@ -60,13 +60,13 @@ const moneyController = {
                 return res.status(400).json({ success: false, message: 'กรุณาระบุข้อมูลบัญชีธนาคาร' });
             }
 
-            // 3. เริ่ม Transaction (หักเงินและสร้างรายการถอน)
+            // 3. เริ่ม Transaction
             await pool.query('BEGIN');
             
-            // หักเงินจาก wallet ในตาราง users
+            // หักเงินจาก wallet
             await pool.query('UPDATE public.users SET wallet = wallet - $1 WHERE id = $2', [amount, userId]);
             
-            // สร้างรายการในตาราง withdrawals
+            // สร้างรายการถอน
             await pool.query(
                 `INSERT INTO public.withdrawals (user_id, bank_account_id, amount, status) 
                  VALUES ($1, $2, $3, 'pending')`,
@@ -76,13 +76,12 @@ const moneyController = {
             await pool.query('COMMIT');
             res.json({ success: true, message: 'ส่งคำขอถอนเงินสำเร็จ โปรดรอแอดมินดำเนินการ' });
         } catch (error) {
-            if (pool.query) await pool.query('ROLLBACK');
+            await pool.query('ROLLBACK');
             res.status(500).json({ success: false, error: error.message });
         }
     },
 
-
-    // ดึงรายการถอนเงินทั้งหมด (Admin) - เรียงลำดับ pending ขึ้นก่อน
+    // ดึงรายการถอนเงินทั้งหมด (Admin)
     getPendingWithdrawals: async (req, res) => {
         try {
             const result = await pool.query(
@@ -102,26 +101,34 @@ const moneyController = {
         }
     },
 
+    // อนุมัติการถอนเงิน (Admin)
     approveWithdraw: async (req, res) => {
-        const { withdrawal_id, requestId, status, admin_note, transfer_slip_url, comment } = req.body;
-        const id = withdrawal_id || requestId;
-        const finalStatus = status === 'rejected' ? 'rejected' : 'completed';
-        const finalNote = admin_note || comment;
-
         try {
-            // 1. Fetch the withdrawal request to get amount and user_id
-            const requestQuery = await pool.query('SELECT user_id, amount FROM public.withdrawals WHERE id = $1', [id]);
-            if (requestQuery.rows.length === 0) {
-                return res.status(404).json({ success: false, message: 'ไม่พบรายการถอนที่ระบุ' });
+            const { withdrawal_id, admin_note, status } = req.body;
+            
+            if (!withdrawal_id) {
+                return res.status(400).json({ success: false, message: 'กรุณาระบุ withdrawal_id' });
             }
-            const { user_id, amount } = requestQuery.rows[0];
 
-            // 2. ถ้าปฏิเสธ (rejected) ให้คืนเงินกลับเข้ากระเป๋า
+            let transfer_slip_url = req.body.transfer_slip_url || '';
+
+            // ถ้ามีการอัปโหลดไฟล์ผ่าน multer
+            if (req.file) {
+                transfer_slip_url = `/uploads/slips/${req.file.filename}`;
+            }
+
+            const finalStatus = status === 'rejected' ? 'rejected' : 'completed';
+
+            // ถ้าเป็นการปฏิเสธ (rejected) ให้คืนเงินกลับเข้ากระเป๋าผู้ใช้
             if (finalStatus === 'rejected') {
-                await pool.query('UPDATE public.users SET wallet = wallet + $1 WHERE id = $2', [amount, user_id]);
+                const withdrawInfo = await pool.query('SELECT user_id, amount FROM public.withdrawals WHERE id = $1', [withdrawal_id]);
+                if (withdrawInfo.rows.length > 0) {
+                    const { user_id, amount } = withdrawInfo.rows[0];
+                    await pool.query('UPDATE public.users SET wallet = wallet + $1 WHERE id = $2', [amount, user_id]);
+                }
             }
 
-            // 3. อัปเดตสถานะและใส่ข้อมูลหลักฐาน
+            // อัปเดตรายการถอน
             const result = await pool.query(
                 `UPDATE public.withdrawals 
                  SET status = $1, 
@@ -129,12 +136,16 @@ const moneyController = {
                      transfer_slip_url = $3
                  WHERE id = $4 
                  RETURNING *`,
-                [finalStatus, finalNote, transfer_slip_url, id]
+                [finalStatus, admin_note, transfer_slip_url, withdrawal_id]
             );
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'ไม่พบรายการถอนที่ระบุ' });
+            }
 
             res.json({ 
                 success: true, 
-                message: finalStatus === 'rejected' ? 'ปฏิเสธรายการถอนและคืนเงินเรียบร้อย' : 'อนุมัติการถอนเงินเรียบร้อย',
+                message: finalStatus === 'rejected' ? 'ปฏิเสธคำขอและคืนเงินเข้าวอลเล็ตแล้ว' : 'อนุมัติการถอนเงินเรียบร้อย',
                 data: result.rows[0] 
             });
         } catch (error) {

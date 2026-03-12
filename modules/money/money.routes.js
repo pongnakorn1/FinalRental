@@ -13,6 +13,6 @@ router.post('/withdraw/request', authenticateToken, moneyController.requestWithd
 // Admin Routes
 router.get('/admin/withdraw-pending', authenticateToken, requireAdmin, moneyController.getPendingWithdrawals);
 router.get('/admin/withdrawals/pending', authenticateToken, requireAdmin, moneyController.getPendingWithdrawals); // รองรับทั้งสองแบบ ใน frontend
-router.put('/admin/approve', authenticateToken, requireAdmin, moneyController.approveWithdraw);
+router.put('/admin/approve', authenticateToken, requireAdmin, uploadSlip.single('transfer_slip'), moneyController.approveWithdraw);
 
 export default router;
