@@ -2,6 +2,7 @@ import express from "express";
 // 1. รวมการ Import จาก Controller ทั้งหมดไว้ที่เดียว
 import { 
     viewPendingKYC, 
+    viewAllKYC, 
     approveRejectKYC, 
     suspendUser,
     getForgotPasswordRequests, 
@@ -31,6 +32,9 @@ router.use(requireAdmin);
 
 // ดูรายการ KYC ที่รออนุมัติ
 router.get("/kyc/pending", viewPendingKYC);
+
+// ดูรายการ KYC ทั้งหมด (รวมประวัติ)
+router.get("/kyc/all", viewAllKYC);
 
 // อนุมัติหรือปฏิเสธ KYC
 router.put("/kyc/:id", approveRejectKYC);

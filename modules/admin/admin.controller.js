@@ -27,6 +27,32 @@ export const viewPendingKYC = async (req, res) => {
 };
 
 // ==========================================
+// 📌 1.1 ดูรายการ KYC ทั้งหมด (รวมที่จัดการแล้ว)
+// ==========================================
+export const viewAllKYC = async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT id, full_name, email, id_card_number, id_card_image, face_image, kyc_status
+             FROM users 
+             WHERE kyc_status IN ('pending', 'approved', 'rejected')
+             ORDER BY id DESC`
+        );
+        
+        res.status(200).json({ 
+            success: true,
+            total: result.rowCount,
+            data: result.rows 
+        });
+    } catch (err) {
+        console.error("View All KYC Error:", err.message);
+        res.status(500).json({ 
+            success: false, 
+            message: "Internal Server Error: " + err.message 
+        });
+    }
+};
+
+// ==========================================
 // 📌 2. Admin อนุมัติ หรือ ปฏิเสธ KYC
 // ==========================================
 export const approveRejectKYC = async (req, res) => {
