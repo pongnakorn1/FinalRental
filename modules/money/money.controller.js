@@ -103,34 +103,6 @@ const moneyController = {
     },
 
     approveWithdraw: async (req, res) => {
-<<<<<<< HEAD
-        try {
-            // รับข้อมูลจาก body (JSON)
-            const { withdrawal_id, admin_note, transfer_slip_url } = req.body;
-
-            if (!withdrawal_id) {
-                return res.status(400).json({ success: false, message: 'กรุณาระบุ ID รายการถอนเงิน (withdrawal_id is required)' });
-            }
-
-            // อัปเดตสถานะและบันทึกข้อมูลหลักฐานการโอน (สลิปอาจเป็น Base64 หรือ URL)
-            const result = await pool.query(
-                `UPDATE public.withdrawals 
-                 SET status = 'completed', 
-                     admin_note = $1, 
-                     transfer_slip_url = $2
-                 WHERE id = $3 
-                 RETURNING *`,
-                [admin_note, transfer_slip_url, withdrawal_id]
-            );
-
-            if (result.rows.length === 0) {
-                return res.status(404).json({ success: false, message: 'ไม่พบรายการถอนที่ระบุ' });
-            }
-
-            res.json({ 
-                success: true, 
-                message: 'อนุมัติการถอนเงินเรียบร้อย',
-=======
         const { withdrawal_id, requestId, status, admin_note, transfer_slip_url, comment } = req.body;
         const id = withdrawal_id || requestId;
         const finalStatus = status === 'rejected' ? 'rejected' : 'completed';
@@ -163,18 +135,13 @@ const moneyController = {
             res.json({ 
                 success: true, 
                 message: finalStatus === 'rejected' ? 'ปฏิเสธรายการถอนและคืนเงินเรียบร้อย' : 'อนุมัติการถอนเงินเรียบร้อย',
->>>>>>> c153f6f9314999e0e6b9a38b9ebb1be81f1cb14f
                 data: result.rows[0] 
             });
         } catch (error) {
             console.error("Approve Withdraw Error:", error);
-<<<<<<< HEAD
-            res.status(500).json({ success: false, error: 'Server Error: ' + error.message });
-=======
             res.status(500).json({ success: false, error: error.message });
->>>>>>> c153f6f9314999e0e6b9a38b9ebb1be81f1cb14f
         }
     }
-}
+};
 
 export default moneyController;
