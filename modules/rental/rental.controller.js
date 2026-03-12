@@ -126,6 +126,13 @@ export const updateRentalStatus = async (req, res) => {
     const { action, proof_url } = req.body;
     const userId = req.user.id;
     const client = await pool.connect();
+    const isFileSizeValid = (base64String, maxMb = 25) => {
+    if (!base64String) return true; // ถ้าไม่มีรูปให้ผ่าน (ไปดัก required แยกเอา)
+    const stringLength = base64String.length;
+    const sizeInBytes = (stringLength * 0.75); // ค่าประมาณขนาดไฟล์จริงจาก Base64
+    const sizeInMb = sizeInBytes / (1024 * 1024);
+    return sizeInMb <= maxMb;
+    };
 
     try {
         await client.query("BEGIN");
@@ -161,6 +168,10 @@ export const updateRentalStatus = async (req, res) => {
                     await client.query("ROLLBACK");
                     return res.status(400).json({ message: "กรุณาแนบรูปภาพสลิป" });
                 }
+                if (!isFileSizeValid(proof_url)) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ message: "ขนาดรูปภาพสลิปต้องไม่เกิน 25MB" });
+                }
                 nextStatus = 'waiting_admin_verify';
                 await client.query(`UPDATE bookings SET status = $1, slip_image = $2, payment_status = 'pending' WHERE id = $3`, [nextStatus, proof_url, id]);
                 break;
@@ -176,6 +187,14 @@ export const updateRentalStatus = async (req, res) => {
 
             case 'ship':
                 const { outbound_shipping_company, outbound_tracking_number } = req.body;
+                if (!proof_url) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ message: "กรุณาถ่ายรูปสินค้าก่อนจัดส่ง" });
+                }
+                if (!isFileSizeValid(proof_url)) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ message: "ขนาดรูปภาพสินค้าต้องไม่เกิน 25MB" });
+                }
                 nextStatus = 'shipped';
                 await client.query(
                     `UPDATE bookings SET status = $1, proof_before_shipping = $2, outbound_shipping_company = $3, outbound_tracking_number = $4 WHERE id = $5`, 
@@ -184,6 +203,14 @@ export const updateRentalStatus = async (req, res) => {
                 break;
 
             case 'receive':
+                if (!proof_url) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ message: "กรุณาถ่ายรูปสินค้าที่ได้รับ" });
+                }
+                if (!isFileSizeValid(proof_url)) {
+                    await client.query("ROLLBACK");
+                    return res.status(400).json({ message: "ขนาดรูปภาพต้องไม่เกิน 25MB" });
+                }
                 nextStatus = 'received';
                 // ✅ 1. อัปเดตสถานะของ Booking
                 await client.query(`UPDATE bookings SET status = $1, proof_after_receiving = $2 WHERE id = $3`, [nextStatus, proof_url, id]);
@@ -223,7 +250,11 @@ export const updateRentalStatus = async (req, res) => {
                 break;
 
             case 'return':
-                const { inbound_shipping_company, inbound_tracking_number } = req.body;
+           const { inbound_shipping_company, inbound_tracking_number } = req.body;
+            if (!proof_url || !isFileSizeValid(proof_url, 25)) {
+        await client.query("ROLLBACK");
+        return res.status(400).json({ message: "กรุณาแนบรูปภาพสภาพสินค้าและขนาดห้ามเกิน 25MB" });
+        }
                 nextStatus = 'returning';
                 await client.query(
                     `UPDATE bookings SET status = $1, proof_before_return = $2, inbound_shipping_company = $3, inbound_tracking_number = $4, returned_at = NOW() WHERE id = $5`, 
