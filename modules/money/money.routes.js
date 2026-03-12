@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticateToken } from '../../middleware/auth.middleware.js';
 import { requireAdmin } from '../../middleware/role.middleware.js';
+import { uploadSlip } from '../../middleware/multer.config.js';
 import moneyController from './money.controller.js';
 
 const router = express.Router();

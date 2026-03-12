@@ -50,16 +50,18 @@ const moneyController = {
     },
 
 
-    // ดึงรายการถอนเงินที่รอการอนุมัติ (Admin)
+    // ดึงรายการถอนเงินทั้งหมด (Admin) - เรียงลำดับ pending ขึ้นก่อน
     getPendingWithdrawals: async (req, res) => {
         try {
             const result = await pool.query(
-                `SELECT w.*, u.full_name, b.bank_name, b.account_number 
+                `SELECT w.*, u.full_name, u.email, u.profile_image, 
+                        b.bank_name, b.account_number, b.account_name
                  FROM public.withdrawals w
                  JOIN public.users u ON w.user_id = u.id
                  JOIN public.bank_accounts b ON w.bank_account_id = b.id
-                 WHERE w.status = 'pending'
-                 ORDER BY w.created_at DESC`
+                 ORDER BY 
+                    CASE WHEN w.status = 'pending' THEN 0 ELSE 1 END,
+                    w.created_at DESC`
             );
             res.json(result.rows);
         } catch (error) {
@@ -69,33 +71,39 @@ const moneyController = {
     },
 
     approveWithdraw: async (req, res) => {
+        try {
+            // รับข้อมูลจาก body (JSON)
+            const { withdrawal_id, admin_note, transfer_slip_url } = req.body;
 
-    const { withdrawal_id, admin_note, transfer_slip_url } = req.body;
-    try {
-        // อัปเดตสถานะและใส่ข้อมูลหลักฐานการโอน
-        const result = await pool.query(
-    `UPDATE public.withdrawals 
-     SET status = 'completed', 
-         admin_note = $1, 
-         transfer_slip_url = $2
-     WHERE id = $3 
-     RETURNING *`,
-    [admin_note, transfer_slip_url, withdrawal_id]
-);
+            if (!withdrawal_id) {
+                return res.status(400).json({ success: false, message: 'กรุณาระบุ ID รายการถอนเงิน (withdrawal_id is required)' });
+            }
 
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'ไม่พบรายการถอนที่ระบุ' });
+            // อัปเดตสถานะและบันทึกข้อมูลหลักฐานการโอน (สลิปอาจเป็น Base64 หรือ URL)
+            const result = await pool.query(
+                `UPDATE public.withdrawals 
+                 SET status = 'completed', 
+                     admin_note = $1, 
+                     transfer_slip_url = $2
+                 WHERE id = $3 
+                 RETURNING *`,
+                [admin_note, transfer_slip_url, withdrawal_id]
+            );
+
+            if (result.rows.length === 0) {
+                return res.status(404).json({ success: false, message: 'ไม่พบรายการถอนที่ระบุ' });
+            }
+
+            res.json({ 
+                success: true, 
+                message: 'อนุมัติการถอนเงินเรียบร้อย',
+                data: result.rows[0] 
+            });
+        } catch (error) {
+            console.error("Approve Withdraw Error:", error);
+            res.status(500).json({ success: false, error: 'Server Error: ' + error.message });
         }
-
-        res.json({ 
-            success: true, 
-            message: 'อนุมัติการถอนเงินและบันทึกหลักฐานเรียบร้อย',
-            data: result.rows[0] 
-        });
-    } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
     }
-}
 }
 
 export default moneyController;
