@@ -1,13 +1,88 @@
 import pool from "../../config/db.js";
 
-// =============================
-// 📌 USER UPLOAD PAYMENT SLIP
-// =============================
-export const createPayment = async (req, res) => {
+// =============================================
+// 📌 1. CREATE RENTAL (ผู้เช่ากดยืนยันการจอง)
+// =============================================
+export const createRental = async (req, res) => {
   const client = await pool.connect();
-
   try {
-    const { rental_id, slip_image } = req.body; // rental_id คือ id จากตาราง bookings
+    const { product_id, start_date, end_date, quantity, shipping_fee = 0, deposit_fee = 0 } = req.body;
+    const userId = req.user.id;
+
+    if (!product_id || !start_date || !end_date || !quantity) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    await client.query("BEGIN");
+
+    const productResult = await client.query(
+      `SELECT id, quantity, price_per_day, shop_id FROM products WHERE id = $1 FOR UPDATE`,
+      [product_id]
+    );
+
+    if (productResult.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    const product = productResult.rows[0];
+    const shopResult = await client.query(`SELECT owner_id FROM shops WHERE id = $1`, [product.shop_id]);
+    const ownerId = shopResult.rows[0]?.owner_id;
+
+    if (ownerId === userId) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "You cannot rent your own product" });
+    }
+
+    const start = new Date(start_date);
+    const end = new Date(end_date);
+    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1; 
+    
+    const rent_fee = days * parseFloat(product.price_per_day) * quantity;
+    const total_price = rent_fee + parseFloat(shipping_fee) + parseFloat(deposit_fee);
+
+    // สร้าง room_id สำหรับแชท
+    const id1 = parseInt(userId);
+    const id2 = parseInt(ownerId);
+    const sortedIds = [id1, id2].sort((a, b) => a - b);
+    const roomId = `chat_${sortedIds[0]}_${sortedIds[1]}`;
+
+    const rentalResult = await client.query(
+      `INSERT INTO bookings
+       (renter_id, product_id, quantity, start_date, end_date, rent_fee, shipping_fee, deposit_fee, total_price, status, days, owner_id, room_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending_owner', $10, $11, $12)
+       RETURNING *`,
+      [userId, product_id, quantity, start_date, end_date, rent_fee, shipping_fee, deposit_fee, total_price, days, ownerId, roomId]
+    );
+
+    // ยิงข้อความแรกเข้าห้องแชทอัตโนมัติ
+    await client.query(
+      `INSERT INTO messages (room_id, sender_id, message)
+       VALUES ($1, $2, $3)`,
+      [roomId, userId, `สวัสดีครับ ผมสนใจเช่าสินค้า "${product.name || 'สินค้าของคุณ'}" ของคุณครับ`]
+    );
+
+    await client.query("COMMIT");
+    res.status(201).json({ success: true, rental: rentalResult.rows[0] });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    res.status(500).json({ message: "Creation failed: " + err.message });
+  } finally {
+    client.release();
+  }
+};
+
+// =============================================
+// 📌 2. CREATE PAYMENT (ผู้เช่าอัปโหลดรูปสลิป) - **แก้บั๊ก Error 500 แล้ว**
+// =============================================
+export const createPayment = async (req, res) => {
+  let client = null;
+  try {
+    client = await pool.connect();
+    const { rental_id, slip_image } = req.body;
+    console.log("📦 Payment Request:", { rental_id, slipLength: slip_image?.length, userId: req.user?.id });
+
+
     const userId = req.user.id;
 
     if (!rental_id || !slip_image) {
@@ -16,12 +91,10 @@ export const createPayment = async (req, res) => {
 
     await client.query("BEGIN");
 
-    // 🔎 1. เปลี่ยนชื่อตารางเป็น bookings และคอลัมน์เป็น renter_id
+    // 🔎 1. แก้ไข SQL ให้ใช้ parseInt เพื่อป้องกัน Error 500 เรื่องชนิดข้อมูล
     const rentalResult = await client.query(
-      `SELECT * FROM bookings 
-       WHERE id = $1 AND renter_id = $2
-       FOR UPDATE`,
-      [rental_id, userId]
+      `SELECT * FROM bookings WHERE id = $1 AND renter_id = $2 FOR UPDATE`,
+      [parseInt(rental_id), parseInt(userId)]
     );
 
     if (rentalResult.rowCount === 0) {
@@ -31,13 +104,13 @@ export const createPayment = async (req, res) => {
 
     const rental = rentalResult.rows[0];
 
-    // ✅ 2. ตรวจสอบสถานะ (ต้องผ่านการอนุมัติจากเจ้าของก่อน)
-    if (rental.status !== "waiting_payment") {
-    await client.query("ROLLBACK");
-    return res.status(400).json({ message: "Rental is not ready for payment" });
-}
+    // ✅ 2. ตรวจสอบสถานะ (ยอมรับทั้ง waiting_payment และ approved)
+    if (rental.status !== "waiting_payment" && rental.status !== "approved") {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ message: "รายการนี้ยังไม่พร้อมสำหรับการชำระเงิน" });
+    }
 
-    // 🔄 3. อัปเดตลงตาราง bookings โดยตรง (เพราะคุณมีคอลัมน์ slip_image อยู่แล้ว)
+    // 🔄 3. อัปเดตลงตาราง bookings (ตรวจสอบชื่อคอลัมน์ให้ตรงตาม Supabase หน้า 2)
     const updatedBooking = await client.query(
       `UPDATE bookings
        SET slip_image = $1, 
@@ -45,46 +118,100 @@ export const createPayment = async (req, res) => {
            payment_status = 'pending'
        WHERE id = $2
        RETURNING *`,
-      [slip_image, rental_id]
+      [slip_image, parseInt(rental_id)]
     );
 
     await client.query("COMMIT");
-
-    res.status(200).json({
-      message: "Slip uploaded successfully",
-      booking: updatedBooking.rows[0]
-    });
+    res.status(200).json({ success: true, message: "Upload slip successfully", booking: updatedBooking.rows[0] });
 
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (client) await client.query("ROLLBACK");
     console.error("Error at createPayment:", err);
-    res.status(500).json({ message: "Payment upload failed" });
+    res.status(500).json({ message: "Payment upload failed: " + err.message });
+  } finally {
+    if (client) client.release();
+  }
+};
+
+
+// =============================================
+// 📌 2.1 ดึงรายการสลิปที่รอการตรวจสอบ
+// =============================================
+export const getPendingVerifyBookings = async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT b.*, u.full_name as renter_name, u.email as renter_email, u.profile_picture as renter_profile_img 
+       FROM bookings b
+       LEFT JOIN users u ON b.renter_id = u.id
+       WHERE b.status = 'waiting_admin_verify' OR b.status = 'waiting_verification'
+       ORDER BY b.created_at DESC`
+    );
+    // ส่งกลับเป็นรูปแบบ Object ที่มี success: true
+    res.json({ success: true, data: result.rows });
+  } catch (err) {
+    console.error("Fetch Pending Slips Error:", err);
+    res.status(500).json({ success: false, message: "Fetch pending slips failed" });
+  }
+};
+
+
+// =============================================
+// 📌 3. OWNER APPROVE (เจ้าของกดยอมรับการเช่า)
+// =============================================
+export const ownerApproveRental = async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const rentalId = req.params.id;
+    const userId = req.user.id;
+
+    await client.query("BEGIN");
+
+    const result = await client.query(
+      `SELECT r.*, p.quantity AS current_stock, s.owner_id as shop_owner_id
+       FROM bookings r
+       JOIN products p ON r.product_id = p.id
+       JOIN shops s ON p.shop_id = s.id
+       WHERE r.id = $1 FOR UPDATE`,
+      [rentalId]
+    );
+
+    if (result.rowCount === 0) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Rental not found" });
+    }
+
+    const rental = result.rows[0];
+    if (rental.owner_id !== userId && rental.shop_owner_id !== userId) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ message: "Unauthorized" });
+    }
+
+
+    // หักสต็อกและเปลี่ยนสถานะเป็น waiting_payment
+    await client.query(`UPDATE products SET quantity = quantity - $1 WHERE id = $2`, [rental.quantity, rental.product_id]);
+    await client.query(`UPDATE bookings SET status = 'waiting_payment', approved_at = NOW() WHERE id = $1`, [rentalId]);
+
+    await client.query("COMMIT");
+    res.json({ success: true, message: "Approved" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    res.status(500).json({ message: "Approval failed: " + err.message });
   } finally {
     client.release();
   }
 };
 
-// =============================
-// 📌 ADMIN VERIFY PAYMENT
-// =============================
+// =============================================
+// 📌 4. ADMIN VERIFY (แอดมินยืนยันยอดเงินจากสลิป)
+// =============================================
 export const adminVerifyPayment = async (req, res) => {
   const client = await pool.connect();
-
   try {
-    const bookingId = req.params.id; // รับ ID ของการจอง
+    const bookingId = req.params.id;
     const { approve } = req.body;
 
-    if (typeof approve !== "boolean") {
-      return res.status(400).json({ message: "Approve must be true or false" });
-    }
-
     await client.query("BEGIN");
-
-    // 🔎 1. ตรวจสอบข้อมูลการจอง
-    const result = await client.query(
-      `SELECT * FROM bookings WHERE id = $1 FOR UPDATE`,
-      [bookingId]
-    );
+    const result = await client.query(`SELECT * FROM bookings WHERE id = $1 FOR UPDATE`, [bookingId]);
 
     if (result.rowCount === 0) {
       await client.query("ROLLBACK");
@@ -92,39 +219,61 @@ export const adminVerifyPayment = async (req, res) => {
     }
 
     if (approve) {
-      // ✅ 2. อนุมัติ: เปลี่ยนสถานะเป็น completed และ paid
       await client.query(
-        `UPDATE bookings 
-         SET status = 'paid', 
-             payment_status = 'paid' 
-         WHERE id = $1`,
+        `UPDATE bookings SET status = 'paid', payment_status = 'paid' WHERE id = $1`,
         [bookingId]
       );
-
-      // ⚠️ หมายเหตุ: ไม่ต้องหักสต็อกซ้ำ เพราะเราหักไปแล้วในขั้นตอน owner_approved
-
       await client.query("COMMIT");
-      res.json({ message: "Payment verified, rental completed" });
-
+      res.json({ success: true, message: "Payment verified" });
     } else {
-      // ❌ 3. ปฏิเสธ: ส่งกลับไปสถานะรอชำระใหม่ หรือยกเลิก
       await client.query(
-        `UPDATE bookings 
-         SET status = 'owner_approved', 
-             payment_status = 'rejected' 
-         WHERE id = $1`,
+        `UPDATE bookings SET status = 'waiting_payment', payment_status = 'rejected' WHERE id = $1`,
         [bookingId]
       );
-
       await client.query("COMMIT");
       res.json({ message: "Payment rejected, waiting for new slip" });
     }
-
   } catch (err) {
     await client.query("ROLLBACK");
-    console.error("Error at adminVerifyPayment:", err);
-    res.status(500).json({ message: "Admin verification failed" });
+    res.status(500).json({ message: "Verification failed: " + err.message });
   } finally {
     client.release();
   }
+};
+
+// ==================================================
+// 📌 5. GET DATA (ฟังก์ชันดึงข้อมูลต่างๆ)
+// ==================================================
+export const getRenterRentals = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const result = await pool.query(
+            `SELECT b.*, p.name as product_name, p.images, s.name as shop_name 
+             FROM bookings b
+             JOIN products p ON b.product_id = p.id
+             JOIN shops s ON p.shop_id = s.id
+             WHERE b.renter_id = $1 ORDER BY b.created_at DESC`,
+            [userId]
+        );
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ message: "Fetch rentals failed" });
+    }
+};
+
+export const getOwnerRentals = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const result = await pool.query(
+            `SELECT b.*, p.name as product_name, p.images, u.full_name as renter_name
+             FROM bookings b
+             JOIN products p ON b.product_id = p.id
+             JOIN users u ON b.renter_id = u.id
+             WHERE b.owner_id = $1 ORDER BY b.created_at DESC`,
+            [userId]
+        );
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ message: "Fetch owner rentals failed" });
+    }
 };

@@ -1,21 +1,22 @@
 import express from 'express';
-import passport from 'passport'; 
-import { 
-    register, 
-    login, 
-    uploadKYC, 
-    socialLogin, 
-    extractIDNumber, 
-    getMyProfile, 
-    updateProfile, 
-    verifyUserBeforeReset,     // <--- เพิ่มตัวนี้
-    submitPasswordResetRequest // <--- เพิ่มตัวนี้
-} from './auth.controller.js';
-import { authenticateToken } from '../../middleware/auth.middleware.js'; 
-import { requestOTP, verifyOTP } from './otp.controller.js';
 import multer from 'multer';
-import { uploadProfile } from "../../middleware/multer.config.js"; // ตัวอย่าง path
+import passport from 'passport';
 import path from 'path';
+import { authenticateToken } from '../../middleware/auth.middleware.js';
+import { uploadProfile } from "../../middleware/multer.config.js"; // ตัวอย่าง path
+import {
+    extractIDNumber,
+    getMyProfile,
+    getUserById,
+    login,
+    register,
+    resetPassword,
+    socialLogin,
+    updateProfile,
+    uploadKYC,
+    verifyUserBeforeReset
+} from './auth.controller.js';
+import { requestOTP, verifyOTP } from './otp.controller.js';
 
 const router = express.Router(); 
 
@@ -106,13 +107,16 @@ router.post('/upload-kyc', authenticateToken, upload.fields([
 // 📌 ดูข้อมูลตัวเอง (ใช้ Token)
 router.get('/me', authenticateToken, getMyProfile);
 
+// 📌 ดูข้อมูลผู้ใช้อื่น (ไม่ต้องใช้ Token)
+router.get('/user/:id', getUserById);
+
 
 
 // ✅ อัปเดตโปรไฟล์ (เพิ่ม upload.single เพื่อรับรูปโปรไฟล์)
 router.patch('/update-profile', authenticateToken, uploadProfile.single('profile_picture'), updateProfile);
 
-// เปลี่ยน Route เป็น 2 จังหวะ
-router.post('/verify-reset-user', verifyUserBeforeReset); // สำหรับหน้าแรก
-router.post('/forgot-password-request', submitPasswordResetRequest); // สำหรับหน้าสอง
+// ✅ ระบบลืมรหัสผ่าน (แบบอัตโนมัติ 2 ขั้นตอน)
+router.post('/verify-reset-user', verifyUserBeforeReset); // ขั้นตอนที่ 1: ตรวจสอบข้อมูลเบอร์/อีเมล + บัตร ปชช.
+router.post('/reset-password', resetPassword);           // ขั้นตอนที่ 2: ตั้งรหัสผ่านใหม่ (ใช้ Reset Token)
 
 export default router;

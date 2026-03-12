@@ -1,71 +1,56 @@
 import express from "express";
-// 1. รวมการ Import จาก Controller ทั้งหมดไว้ที่เดียว
-import { 
-    viewPendingKYC, 
-    viewAllKYC, 
-    approveRejectKYC, 
-    suspendUser,
-    getForgotPasswordRequests, 
+// รวมการ Import จาก admin.controller.js ให้เป็นชุดเดียว
+import {
     adminResetPassword,
-    approvePasswordReset
+    approvePasswordReset,
+    approveRejectKYC,
+    getAllTransactions,
+    getAllUsers,
+    getForgotPasswordRequests,
+    suspendUser,
+    viewPendingKYC,
+    viewAllKYC // เพิ่มตัวนี้เข้าไปด้วยถ้ามีใน controller
 } from './admin.controller.js';
 
-import { 
-    getAllDisputes, 
-    getDisputeById, 
-    decideDispute 
-} from './dispute.controller.js'; 
+import {
+    decideDispute,
+    getAllDisputes,
+    getDisputeById
+} from './dispute.controller.js';
 
-// 2. Import Middleware
+// Import Middleware
 import { authenticateToken } from "../../middleware/auth.middleware.js";
 import { requireAdmin } from "../../middleware/role.middleware.js";
 
 const router = express.Router();
 
-// ใช้ Middleware ตรวจสอบ Admin กับทุก Route ในไฟล์นี้เพื่อความปลอดภัย
+// ใช้ Middleware ตรวจสอบความเป็น Admin กับทุก Route ในไฟล์นี้
 router.use(authenticateToken);
 router.use(requireAdmin);
 
 // ==========================================
-// 📌 ส่วนของ User Management & KYC
+// 📌 User Management & KYC
 // ==========================================
-
-// ดูรายการ KYC ที่รออนุมัติ
 router.get("/kyc/pending", viewPendingKYC);
-
-// ดูรายการ KYC ทั้งหมด (รวมประวัติ)
 router.get("/kyc/all", viewAllKYC);
-
-// อนุมัติหรือปฏิเสธ KYC
 router.put("/kyc/:id", approveRejectKYC);
-
-// ระงับการใช้งานผู้ใช้ (เปลี่ยนเป็น PATCH หรือ POST ตามที่คุณออกแบบ)
 router.post('/suspend/:id', suspendUser);
 
-
 // ==========================================
-// 📌 ส่วนของ Dispute Judge (ระบบตัดสินข้อพิพาท)
+// 📌 Dispute Management (ระบบตัดสินข้อพิพาท)
 // ==========================================
-
-// 1. ดูรายการข้อพิพาททั้งหมด
 router.get("/disputes", getAllDisputes);
-
-// 2. ดูรายละเอียดหลักฐานรายเคส (AD-2-001)
 router.get("/disputes/:id", getDisputeById);
-
-// 3. ตัดสินข้อพิพาท (Approve/Refund/Reject)
 router.patch("/disputes/:id/decide", decideDispute);
 
 // ==========================================
-// 📌 ส่วนของ Password Management (ใหม่)
+// 📌 Password & User Management
 // ==========================================
-
-// 1. ดูรายการผู้ใช้ที่กด "ลืมรหัสผ่าน" และรอการช่วยเหลือ
 router.get("/password-requests", getForgotPasswordRequests);
-
-// 2. Admin ทำการกรอกรหัสใหม่ให้ผู้ใช้รายคน
+router.patch("/password-requests/:id/approve", approvePasswordReset);
 router.post("/reset-user-password", adminResetPassword);
 
-router.patch("/password-requests/:id/approve", approvePasswordReset);
+router.get("/users", getAllUsers);
+router.get("/transactions", getAllTransactions);
 
 export default router;

@@ -1,5 +1,5 @@
-import pool from "../../config/db.js";
 import bcrypt from "bcrypt";
+import pool from "../../config/db.js";
 
 // ==========================================
 // 📌 1. ดูรายการ KYC ที่รออนุมัติ (Pending)
@@ -206,5 +206,38 @@ export const approvePasswordReset = async (req, res) => {
     } catch (err) {
         console.error("APPROVE ERROR:", err);
         res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการอนุมัติ" });
+    }
+};
+
+// ==========================================
+// 📌 4. ดึงรายชื่อผู้ใช้ทั้งหมด (Admin)
+// ==========================================
+export const getAllUsers = async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT id, full_name, email, role, kyc_status, is_suspended, created_at 
+             FROM users 
+             ORDER BY created_at DESC`
+        );
+        res.json({ success: true, users: result.rows });
+    } catch (err) {
+        console.error("Get All Users Error:", err);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
+    }
+};
+
+// ==========================================
+// 📌 5. ดึงรายการธุรกรรมทั้งหมด (Admin)
+// ==========================================
+export const getAllTransactions = async (req, res) => {
+    try {
+        // แอดมินดูธุรกรรมทั้งหมดในระบบ
+        const result = await pool.query(
+            `SELECT * FROM transactions ORDER BY created_at DESC`
+        );
+        res.json(result.rows);
+    } catch (err) {
+        console.error("Get All Transactions Error:", err);
+        res.status(500).json({ success: false, message: "Internal Server Error" });
     }
 };

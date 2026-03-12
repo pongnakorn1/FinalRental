@@ -1,8 +1,8 @@
 import express from 'express';
 import {
-  createShop,
-  getAllShops,
-  getShopById
+    createShop,
+    getAllShops,
+    getShopById
 } from './shop.controller.js';
 
 import { authenticateToken } from '../../middleware/auth.middleware.js';

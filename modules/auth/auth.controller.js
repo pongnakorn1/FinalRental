@@ -1,12 +1,11 @@
-import 'dotenv/config';
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
+import 'dotenv/config';
 import admin from 'firebase-admin';
-import pool from "../../config/db.js";
-import fs from 'fs';
+import jwt from "jsonwebtoken";
 import path from 'path';
+import pool from "../../config/db.js";
 
-import vision from '@google-cloud/vision'
+import vision from '@google-cloud/vision';
 
 // =============================
 // 🔥 Firebase Admin
@@ -378,6 +377,32 @@ export const getMyProfile = async (req, res) => {
         res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลโปรไฟล์" });
     }
 };
+
+// 📌 ดึงข้อมูลผู้ใช้อื่น (สำหรับแชท)
+export const getUserById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(
+            `SELECT id, full_name, profile_picture 
+             FROM users 
+             WHERE id = $1`,
+            [id]
+        );
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: "ไม่พบข้อมูลผู้ใช้งาน" });
+        }
+
+        res.json({
+            success: true,
+            user: result.rows[0]
+        });
+    } catch (err) {
+        console.error("Get User By ID Error:", err);
+        res.status(500).json({ message: "เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้งาน" });
+    }
+};
+
 // ขั้นตอนที่ 1: ตรวจสอบตัวตน (Verify User)
 // เรียกใช้เมื่อกดปุ่ม "รีเซ็ทรหัสผ่าน" หน้าแรก
 export const verifyUserBeforeReset = async (req, res) => {
@@ -398,10 +423,18 @@ export const verifyUserBeforeReset = async (req, res) => {
             });
         }
 
-        // ถ้าผ่าน ให้ส่ง userId กลับไป เพื่อให้หน้าบ้านใช้ส่งในขั้นตอนถัดไป
+        const userId = user.rows[0].id;
+        
+        // สร้าง Token พิเศษสำหรับรีเซ็ทรหัสผ่าน (อายุ 15 นาที)
+        const resetToken = jwt.sign(
+            { resetUserId: userId, type: 'password_reset' },
+            process.env.JWT_SECRET,
+            { expiresIn: '15m' }
+        );
+
         res.json({ 
             success: true, 
-            userId: user.rows[0].id,
+            resetToken,
             message: "ตรวจสอบข้อมูลสำเร็จ" 
         });
     } catch (err) {
@@ -410,27 +443,102 @@ export const verifyUserBeforeReset = async (req, res) => {
     }
 };
 
-// ขั้นตอนที่ 2: บันทึกรหัสใหม่ (Submit Password)
-// เรียกใช้เมื่อกรอกรหัสใหม่แล้วกด "ยืนยันรหัสผ่าน"
-export const submitPasswordResetRequest = async (req, res) => {
+// ขั้นตอนที่ 2: ตั้งรหัสผ่านใหม่ (Automatic Reset)
+export const resetPassword = async (req, res) => {
     try {
-        const { userId, newPassword, confirmPassword } = req.body;
+        const { resetToken, newPassword } = req.body;
 
-        if (newPassword !== confirmPassword) {
-            return res.status(400).json({ success: false, message: "รหัสผ่านไม่ตรงกัน" });
+        if (!resetToken || !newPassword) {
+            return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบถ้วน" });
+        }
+
+        // ตรวจสอบ Token
+        let decoded;
+        try {
+            decoded = jwt.verify(resetToken, process.env.JWT_SECRET);
+        } catch (tokenErr) {
+            return res.status(401).json({ 
+                success: false, 
+                message: tokenErr.name === 'TokenExpiredError' ? "Token หมดอายุ (เกิน 15 นาที)" : "Token ไม่ถูกต้อง" 
+            });
+        }
+
+        if (decoded.type !== 'password_reset' || !decoded.resetUserId) {
+            return res.status(401).json({ success: false, message: "Token ไม่ถูกต้อง" });
         }
 
         const hashedPassword = await bcrypt.hash(newPassword, 10);
-
         
-
+        // อัปเดตรหัสผ่านลงตารางหลักทันที (Automatic)
         await pool.query(
-            `UPDATE users 
-             SET pending_password = $1, 
-                 password_reset_requested = true 
-             WHERE id = $2`,
-            [hashedPassword, userId]
+            "UPDATE users SET password = $1 WHERE id = $2",
+            [hashedPassword, decoded.resetUserId]
         );
+
+        res.json({ 
+            success: true, 
+            message: "เปลี่ยนรหัสผ่านสำเร็จเรียบร้อยแล้ว" 
+        });
+
+    } catch (err) {
+        console.error("RESET ERROR:", err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการเปลี่ยนรหัสผ่าน" });
+    }
+};
+
+// ขั้นตอนที่ 2: บันทึกรหัสใหม่ (Submit Password) หรือ ส่งคำขอแบบขั้นตอนเดียว
+// เรียกใช้เมื่อกรอกข้อมูลครบแล้วกด "รีเซ็ทรหัสผ่าน"
+export const submitPasswordResetRequest = async (req, res) => {
+    try {
+        // รองรับทั้งแบบ ขั้นตอนเดียว (ส่งข้อมูลยืนยันตัวตน) และแบบ สองขั้นตอน (มี newPassword)
+        const { full_name, id_card, identifier, userId, newPassword, confirmPassword } = req.body;
+
+        let targetUserId = userId;
+
+        // ถ้าเป็นการส่งคำขอแบบขั้นตอนเดียว (ส่งชื่อ, บัตรประชาชน, การติดต่อ)
+        if (!targetUserId && full_name && id_card && identifier) {
+            const user = await pool.query(
+                `SELECT id FROM users 
+                 WHERE full_name = $1 AND id_card_number = $2 
+                 AND (LOWER(email) = LOWER($3) OR phone = $3)`,
+                [full_name, id_card, identifier]
+            );
+
+            if (user.rowCount === 0) {
+                return res.status(404).json({ 
+                    success: false, 
+                    message: "ข้อมูลไม่ถูกต้อง ไม่พบผู้ใช้งานในระบบ" 
+                });
+            }
+            targetUserId = user.rows[0].id;
+        }
+
+        if (!targetUserId) {
+            return res.status(400).json({ success: false, message: "ข้อมูลไม่ครบถ้วน" });
+        }
+
+        // กรณีที่มีการส่งรหัสผ่านใหม่มาด้วย (ถ้ามี)
+        if (newPassword) {
+            if (newPassword !== confirmPassword) {
+                return res.status(400).json({ success: false, message: "รหัสผ่านไม่ตรงกัน" });
+            }
+            const hashedPassword = await bcrypt.hash(newPassword, 10);
+            await pool.query(
+                `UPDATE users 
+                 SET pending_password = $1, 
+                     password_reset_requested = true 
+                 WHERE id = $2`,
+                [hashedPassword, targetUserId]
+            );
+        } else {
+            // กรณีส่งแค่คำขอให้ Admin ตรวจสอบ (ตามหน้า UI ปัจจุบัน)
+            await pool.query(
+                `UPDATE users 
+                 SET password_reset_requested = true 
+                 WHERE id = $1`,
+                [targetUserId]
+            );
+        }
 
         res.json({ 
             success: true, 
@@ -438,6 +546,6 @@ export const submitPasswordResetRequest = async (req, res) => {
         });
     } catch (err) {
         console.error("SUBMIT ERROR:", err);
-        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการบันทึกรหัสผ่าน" });
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดในการบันทึกคำขอ" });
     }
 };
