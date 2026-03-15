@@ -66,8 +66,29 @@ io.on('connection', (socket) => {
 // 4. สั่งรันผ่าน server.listen (ห้ามใช้ app.listen เด็ดขาด)
 server.listen(PORT, async () => {
   try {
-    // ตรวจสอบการเชื่อมต่อฐานข้อมูล
-    await pool.connect();
+    // ตรวจสอบการเชื่อมต่อฐานข้อมูลและแก้ไขโครงสร้างตาราง
+    const client = await pool.connect();
+    
+    // Auto-migrate newly added columns to avoid "numeric field overflow" or type errors
+    try {
+      await client.query(`
+        ALTER TABLE bookings 
+          ALTER COLUMN proof_before_shipping TYPE TEXT USING proof_before_shipping::TEXT,
+          ALTER COLUMN outbound_tracking_number TYPE VARCHAR(255) USING outbound_tracking_number::VARCHAR,
+          ALTER COLUMN outbound_shipping_company TYPE VARCHAR(255) USING outbound_shipping_company::VARCHAR,
+          ALTER COLUMN proof_after_receiving TYPE TEXT USING proof_after_receiving::TEXT,
+          ALTER COLUMN proof_before_return TYPE TEXT USING proof_before_return::TEXT,
+          ALTER COLUMN inbound_tracking_number TYPE VARCHAR(255) USING inbound_tracking_number::VARCHAR,
+          ALTER COLUMN inbound_shipping_company TYPE VARCHAR(255) USING inbound_shipping_company::VARCHAR;
+      `);
+      console.log('✅ Auto-migrated schema columns successfully.');
+    } catch (migErr) {
+      // It's normal to fail if columns don't exist yet
+      console.log('ℹ️ Migration check:', migErr.message);
+    }
+    
+    client.release();
+    
     console.log('✅ ฐานข้อมูลพร้อมใช้งาน');
     console.log(`🚀 Real-time Server ออนไลน์บนพอร์ต ${PORT}`);
   } catch (err) {
