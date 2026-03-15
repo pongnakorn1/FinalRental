@@ -4,118 +4,118 @@ import pool from "../../config/db.js";
 // 📌 1. CREATE RENTAL (จองและแยกยอดเงิน)
 // =============================================
 export const createRental = async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const { product_id, start_date, end_date, quantity, shipping_fee = 0, deposit_fee = 0 } = req.body;
-    const userId = req.user.id;
+    const client = await pool.connect();
+    try {
+        const { product_id, start_date, end_date, quantity, shipping_fee = 0, deposit_fee = 0 } = req.body;
+        const userId = req.user.id;
 
-    if (!product_id || !start_date || !end_date || !quantity) {
-      return res.status(400).json({ message: "Missing required fields" });
-    }
+        if (!product_id || !start_date || !end_date || !quantity) {
+            return res.status(400).json({ message: "Missing required fields" });
+        }
 
-    await client.query("BEGIN");
+        await client.query("BEGIN");
 
-    const productResult = await client.query(
-      `SELECT id, quantity, price_per_day, shop_id FROM products WHERE id = $1 FOR UPDATE`,
-      [product_id]
-    );
+        const productResult = await client.query(
+            `SELECT id, quantity, price_per_day, shop_id FROM products WHERE id = $1 FOR UPDATE`,
+            [product_id]
+        );
 
-    if (productResult.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ message: "Product not found" });
-    }
+        if (productResult.rowCount === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ message: "Product not found" });
+        }
 
-    const product = productResult.rows[0];
-    const shopResult = await client.query(`SELECT owner_id FROM shops WHERE id = $1`, [product.shop_id]);
-    const ownerId = shopResult.rows[0]?.owner_id;
+        const product = productResult.rows[0];
+        const shopResult = await client.query(`SELECT owner_id FROM shops WHERE id = $1`, [product.shop_id]);
+        const ownerId = shopResult.rows[0]?.owner_id;
 
-    if (ownerId === userId) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ message: "You cannot rent your own product" });
-    }
+        if (ownerId === userId) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ message: "You cannot rent your own product" });
+        }
 
-    if (product.quantity < quantity) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ message: "Not enough stock" });
-    }
+        if (product.quantity < quantity) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ message: "Not enough stock" });
+        }
 
-    const start = new Date(start_date);
-    const end = new Date(end_date);
-    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1; 
-    
-    const rent_fee = days * parseFloat(product.price_per_day) * quantity;
-    const total_price = rent_fee + parseFloat(shipping_fee) + parseFloat(deposit_fee);
+        const start = new Date(start_date);
+        const end = new Date(end_date);
+        const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
 
-    const rentalResult = await client.query(
-      `INSERT INTO bookings
+        const rent_fee = days * parseFloat(product.price_per_day) * quantity;
+        const total_price = rent_fee + parseFloat(shipping_fee) + parseFloat(deposit_fee);
+
+        const rentalResult = await client.query(
+            `INSERT INTO bookings
        (renter_id, product_id, quantity, start_date, end_date, rent_fee, shipping_fee, deposit_fee, total_price, status, days, owner_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending_owner', $10, $11)
        RETURNING *`,
-      [userId, product_id, quantity, start_date, end_date, rent_fee, shipping_fee, deposit_fee, total_price, days, ownerId]
-    );
+            [userId, product_id, quantity, start_date, end_date, rent_fee, shipping_fee, deposit_fee, total_price, days, ownerId]
+        );
 
-    await client.query("COMMIT");
-    res.status(201).json({ success: true, rental: rentalResult.rows[0] });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    res.status(500).json({ message: "Creation failed: " + err.message });
-  } finally {
-    client.release();
-  }
+        await client.query("COMMIT");
+        res.status(201).json({ success: true, rental: rentalResult.rows[0] });
+    } catch (err) {
+        await client.query("ROLLBACK");
+        res.status(500).json({ message: "Creation failed: " + err.message });
+    } finally {
+        client.release();
+    }
 };
 
 // =============================================
 // 📌 2. OWNER APPROVE (เจ้าของอนุมัติ + หักสต็อก)
 // =============================================
 export const ownerApproveRental = async (req, res) => {
-  const client = await pool.connect();
-  try {
-    const rentalId = req.params.id;
-    const userId = req.user.id;
+    const client = await pool.connect();
+    try {
+        const rentalId = req.params.id;
+        const userId = req.user.id;
 
-    await client.query("BEGIN");
+        await client.query("BEGIN");
 
-    const result = await client.query(
-      `SELECT r.*, p.quantity AS current_stock
+        const result = await client.query(
+            `SELECT r.*, p.quantity AS current_stock
        FROM bookings r
        JOIN products p ON r.product_id = p.id
        WHERE r.id = $1 FOR UPDATE`,
-      [rentalId]
-    );
+            [rentalId]
+        );
 
-    if (result.rowCount === 0) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ message: "Rental not found" });
+        if (result.rowCount === 0) {
+            await client.query("ROLLBACK");
+            return res.status(404).json({ message: "Rental not found" });
+        }
+
+        const rental = result.rows[0];
+        if (rental.owner_id !== userId) {
+            await client.query("ROLLBACK");
+            return res.status(403).json({ message: "Unauthorized" });
+        }
+
+        if (rental.current_stock < rental.quantity) {
+            await client.query("ROLLBACK");
+            return res.status(400).json({ message: "Product no longer available" });
+        }
+
+        // ✅ 1. หักสต็อกทันที
+        await client.query(`UPDATE products SET quantity = quantity - $1 WHERE id = $2`, [rental.quantity, rental.product_id]);
+
+        // ✅ 2. อัปเดตสถานะและบันทึกเวลา approved_at เพื่อใช้เช็ค 24 ชม.
+        await client.query(
+            `UPDATE bookings SET status = 'waiting_payment', approved_at = NOW() WHERE id = $1`,
+            [rentalId]
+        );
+
+        await client.query("COMMIT");
+        res.json({ success: true, message: "Approved and stock deducted" });
+    } catch (err) {
+        await client.query("ROLLBACK");
+        res.status(500).json({ message: "Approval failed: " + err.message });
+    } finally {
+        client.release();
     }
-
-    const rental = result.rows[0];
-    if (rental.owner_id !== userId) {
-      await client.query("ROLLBACK");
-      return res.status(403).json({ message: "Unauthorized" });
-    }
-
-    if (rental.current_stock < rental.quantity) {
-      await client.query("ROLLBACK");
-      return res.status(400).json({ message: "Product no longer available" });
-    }
-
-    // ✅ 1. หักสต็อกทันที
-    await client.query(`UPDATE products SET quantity = quantity - $1 WHERE id = $2`, [rental.quantity, rental.product_id]);
-    
-    // ✅ 2. อัปเดตสถานะและบันทึกเวลา approved_at เพื่อใช้เช็ค 24 ชม.
-    await client.query(
-        `UPDATE bookings SET status = 'waiting_payment', approved_at = NOW() WHERE id = $1`, 
-        [rentalId]
-    );
-
-    await client.query("COMMIT");
-    res.json({ success: true, message: "Approved and stock deducted" });
-  } catch (err) {
-    await client.query("ROLLBACK");
-    res.status(500).json({ message: "Approval failed: " + err.message });
-  } finally {
-    client.release();
-  }
 };
 
 // ==================================================
@@ -178,7 +178,7 @@ export const updateRentalStatus = async (req, res) => {
                 const { outbound_shipping_company, outbound_tracking_number } = req.body;
                 nextStatus = 'shipped';
                 await client.query(
-                    `UPDATE bookings SET status = $1, proof_before_shipping = $2, outbound_shipping_company = $3, outbound_tracking_number = $4 WHERE id = $5`, 
+                    `UPDATE bookings SET status = $1, proof_before_shipping = $2, outbound_shipping_company = $3, outbound_tracking_number = $4 WHERE id = $5`,
                     [nextStatus, proof_url, outbound_shipping_company, outbound_tracking_number, id]
                 );
                 break;
@@ -187,7 +187,7 @@ export const updateRentalStatus = async (req, res) => {
                 nextStatus = 'received';
                 // ✅ 1. อัปเดตสถานะของ Booking
                 await client.query(`UPDATE bookings SET status = $1, proof_after_receiving = $2 WHERE id = $3`, [nextStatus, proof_url, id]);
-                
+
                 // ✅ 2. โอนเงินให้เจ้าของร้าน (ค่าเช่า + ค่าขนส่ง)
                 // ตรวจสอบว่าเคยโอนไปหรือยัง (ปรับให้ตรงกับชื่อคอลัมน์ transaction_type)
                 const transferCheck = await client.query(
@@ -198,26 +198,48 @@ export const updateRentalStatus = async (req, res) => {
                 if (transferCheck.rowCount === 0) {
                     // ✅ หักค่าขนส่งออกตามคำขอ (โอนเฉพาะค่าเช่า)
                     const payoutAmount = parseFloat(booking.rent_fee || 0);
-                    
-                    if (payoutAmount > 0) {
-                        // เพิ่มเงินใน wallet ของเจ้าของ
-                        await client.query(
-                            `UPDATE users SET wallet = COALESCE(wallet, 0) + $1 WHERE id = $2`,
-                            [payoutAmount, booking.owner_id]
-                        );
 
-                        // บันทึกประวัติธุรกรรม (ปรับให้ตรงกับชื่อคอลัมน์ transaction_type)
-                        await client.query(
-                            `INSERT INTO wallet_transactions (user_id, booking_id, amount, transaction_type, description)
-                             VALUES ($1, $2, $3, $4, $5)`,
-                            [
-                                booking.owner_id, 
-                                id, 
-                                payoutAmount, 
-                                'payout', 
-                                `รายได้จากการปล่อยเช่ารายการ #${id}`
-                            ]
-                        );
+                    if (payoutAmount > 0) {
+                        // ดักจับว่ายอดเงินเกิน 100 ล้านหรือไม่ (ป้องกัน Numeric(10,2) Overflow)
+                        if (payoutAmount >= 100000000) {
+                            await client.query("ROLLBACK");
+                            return res.status(400).json({ message: `ยอดเงินที่จะโอน (${payoutAmount.toLocaleString()} บาท) สูงเกินขีดจำกัดของฐานข้อมูล (รองรับตัวเลขไม่เกินหลักสิบล้าน) สาเหตุอาจเกิดจากใส่วันที่เช่าผิดพลาดจนทำให้ค่าเช่าสูงผิดปกติ` });
+                        }
+
+                        // เพิ่มเงินใน wallet ของเจ้าของ
+                        try {
+                            await client.query(
+                                `UPDATE users SET wallet = COALESCE(wallet, 0) + $1 WHERE id = $2`,
+                                [payoutAmount, booking.owner_id]
+                            );
+                        } catch (err) {
+                            if (err.message && err.message.includes("numeric field overflow")) {
+                                await client.query("ROLLBACK");
+                                return res.status(400).json({ message: `เกิดความผิดพลาด: ยอดรวมกระเป๋าเงิน (Wallet) ของร้านค้าจะเกินขีดจำกัด (Numeric overflow) หลังจากรับยอด ${payoutAmount.toLocaleString()} บาท ทำไมถึงจำกัด: ฐานข้อมูลตั้งค่าประเภทเงินไว้จำกัดจำนวนหลักเพื่อป้องกันข้อมูลเพี้ยน` });
+                            }
+                            throw err;
+                        }
+
+                        // บันทึกประวัติธุรกรรม
+                        try {
+                            await client.query(
+                                `INSERT INTO wallet_transactions (user_id, booking_id, amount, transaction_type, description)
+                                 VALUES ($1, $2, $3, $4, $5)`,
+                                [
+                                    booking.owner_id,
+                                    id,
+                                    payoutAmount,
+                                    'payout',
+                                    `รายได้จากการปล่อยเช่ารายการ #${id}`
+                                ]
+                            );
+                        } catch (err) {
+                            if (err.message && err.message.includes("numeric field overflow")) {
+                                await client.query("ROLLBACK");
+                                return res.status(400).json({ message: `เกิดความผิดพลาด: จำนวนเงินที่จะบันทึกประวัติธุรกรรม (${payoutAmount.toLocaleString()} บาท) กว้างเกินกว่าฐานข้อมูลกำหนด ทำไมถึงจำกัด: ข้อมูลคอลัมน์จำนวนเงินถูกจำกัดหลักไว้ที่ Numeric(15,2)` });
+                            }
+                            throw err;
+                        }
                     }
                 }
                 break;
@@ -226,7 +248,7 @@ export const updateRentalStatus = async (req, res) => {
                 const { inbound_shipping_company, inbound_tracking_number } = req.body;
                 nextStatus = 'returning';
                 await client.query(
-                    `UPDATE bookings SET status = $1, proof_before_return = $2, inbound_shipping_company = $3, inbound_tracking_number = $4, returned_at = NOW() WHERE id = $5`, 
+                    `UPDATE bookings SET status = $1, proof_before_return = $2, inbound_shipping_company = $3, inbound_tracking_number = $4, returned_at = NOW() WHERE id = $5`,
                     [nextStatus, proof_url, inbound_shipping_company, inbound_tracking_number, id]
                 );
                 break;
@@ -369,11 +391,11 @@ export const getRentalById = async (req, res) => {
              WHERE b.id = $1`,
             [id]
         );
-        
+
         if (result.rowCount === 0) {
             return res.status(404).json({ success: false, message: "ไม่พบข้อมูลการจอง" });
         }
-        
+
         res.json({ success: true, data: result.rows[0] });
     } catch (error) {
         res.status(500).json({ message: error.message });
@@ -387,27 +409,27 @@ export const reportDamage = async (req, res) => {
     const { id } = req.params;
     const { description } = req.body;
     const userId = req.user.id;
-  
+
     if (!description && (!req.files || req.files.length === 0)) {
         return res.status(400).json({ success: false, message: "กรุณาระบุรายละเอียดหรือแนบรูปภาพความเสียหาย" });
     }
-  
+
     const client = await pool.connect();
     try {
         await client.query("BEGIN");
-        
+
         // 1. ตรวจสอบว่า Booking นี้มีอยู่จริงและเป็นของ Renter หรือ Owner ที่เกี่ยวข้อง
         const bookingCheck = await client.query("SELECT * FROM bookings WHERE id = $1", [id]);
         if (bookingCheck.rowCount === 0) {
             await client.query("ROLLBACK");
             return res.status(404).json({ success: false, message: "ไม่พบข้อมูลการจอง" });
         }
-        
+
         const booking = bookingCheck.rows[0];
-        
+
         // กรองรูปถาพ (Multer จะส่งมาใน req.files ในกรณีที่เป็น folder uploads ในเครื่อง)
         const images = req.files ? req.files.map(f => f.path.replace(/\\/g, '/')) : [];
-        
+
         // 2. บันทึกลงตาราง disputes
         const result = await client.query(
             `INSERT INTO disputes (booking_id, raised_by, description, images, status)
@@ -415,10 +437,10 @@ export const reportDamage = async (req, res) => {
              RETURNING *`,
             [id, userId, description || "ไม่ได้ระบุรายละเอียด", JSON.stringify(images)]
         );
-        
+
         // 3. อัปเดตสถานะของ Booking เป็น disputed หรือคงไว้ แต่การมี Dispute จะทำให้ Admin เข้ามาดู
         await client.query(`UPDATE bookings SET status = 'disputed' WHERE id = $1`, [id]);
-        
+
         await client.query("COMMIT");
         res.status(201).json({ success: true, message: "ส่งแจ้งปัญหาเรียบร้อย เจ้าหน้าที่จะดำเนินการตรวจสอบข้อมูล", dispute: result.rows[0] });
     } catch (err) {
@@ -440,9 +462,9 @@ export const getDbSchema = async (req, res) => {
             FROM information_schema.columns 
             WHERE table_name = 'bookings'
         `);
-        
+
         let schemaInfo = result.rows.map(row => `${row.column_name}: ${row.data_type}`);
-        
+
         // Also check wallet_transactions
         const wtResult = await pool.query(`
             SELECT column_name, data_type 
@@ -451,8 +473,8 @@ export const getDbSchema = async (req, res) => {
         `);
         const wtSchemaInfo = wtResult.rows.map(row => `${row.column_name}: ${row.data_type}`);
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: "เรียกดู Schema สำเร็จ",
             bookings_table: schemaInfo,
             wallet_transactions_table: wtSchemaInfo
