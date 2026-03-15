@@ -429,3 +429,35 @@ export const reportDamage = async (req, res) => {
         if (client) client.release();
     }
 };
+
+// =============================================
+// 📌 7. DEBUG DB SCHEMA (ตรวจสอบคอลัมน์ของตาราง)
+// =============================================
+export const getDbSchema = async (req, res) => {
+    try {
+        const result = await pool.query(`
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'bookings'
+        `);
+        
+        let schemaInfo = result.rows.map(row => `${row.column_name}: ${row.data_type}`);
+        
+        // Also check wallet_transactions
+        const wtResult = await pool.query(`
+            SELECT column_name, data_type 
+            FROM information_schema.columns 
+            WHERE table_name = 'wallet_transactions'
+        `);
+        const wtSchemaInfo = wtResult.rows.map(row => `${row.column_name}: ${row.data_type}`);
+
+        res.json({ 
+            success: true, 
+            message: "เรียกดู Schema สำเร็จ",
+            bookings_table: schemaInfo,
+            wallet_transactions_table: wtSchemaInfo
+        });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+};

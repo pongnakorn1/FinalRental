@@ -8,7 +8,8 @@ import {
     getWalletBalance,
     ownerApproveRental,
     reportDamage,
-    updateRentalStatus
+    updateRentalStatus,
+    getDbSchema
 } from './rental.controller.js';
 
 import { authenticateToken } from '../../middleware/auth.middleware.js';
@@ -24,6 +25,8 @@ const router = express.Router();
 // ==========================================
 
 // ดูยอดเงินใน Wallet ของตัวเอง
+router.get('/debug/schema', getDbSchema);
+
 router.get('/wallet/balance', authenticateToken, getWalletBalance);
 
 // ดูประวัติการเงิน (Transaction History)
